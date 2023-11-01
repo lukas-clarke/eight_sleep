@@ -1,0 +1,46 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured",
+            "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
+        },
+        "error": {
+            "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "client_id": "Client Id",
+                    "client_secret": "Client Secret",
+                    "password": "Password",
+                    "username": "Username"
+                }
+            }
+        }
+    },
+    "services": {
+        "heat_set": {
+            "description": "Sets heating/cooling level for eight sleep.",
+            "fields": {
+                "duration": {
+                    "description": "Duration to heat/cool at the target level in seconds.",
+                    "name": "Duration"
+                },
+                "target": {
+                    "description": "Target cooling/heating level from -100 to 100.",
+                    "name": "Target"
+                }
+            },
+            "name": "Heat set"
+        },
+        "side_off": {
+            "description": "Turns off 8 sleep side.",
+            "name": "Side Off"
+        }
+        ,
+        "side_on": {
+            "description": "Turns on 8 sleep side into smart mode.",
+            "name": "Side On"
+        }
+    }
+}

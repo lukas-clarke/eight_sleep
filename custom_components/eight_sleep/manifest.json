@@ -1,0 +1,11 @@
+{
+    "domain": "eight_sleep",
+    "name": "Eight Sleep",
+    "codeowners": ["@lukas-clarke"],
+    "config_flow": true,
+    "documentation": "https://github.com/lukas-clarke/pyEight",
+    "iot_class": "cloud_polling",
+    "loggers": ["pyEight"],
+    "requirements": ["httpx", "dataclasses"],
+    "version": "1.0.0"
+  }

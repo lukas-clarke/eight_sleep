@@ -1,0 +1,5 @@
+{
+  "name": "Eight Sleep Integration",
+  "homeassistant": "2023.9.1",
+  "render_readme": true
+}
