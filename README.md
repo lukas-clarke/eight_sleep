@@ -45,6 +45,7 @@ There are a few services you can use on the <..>_bed_temperature entities:
 
 ## TODO ##
 - Streamline process for getting client_id and client_secret. It would be nice to have it (mostly) scripted or to have a preconfigured AVD available to get the values.
+- Translate "Heat Set" values to temperature values in degrees for easier use.
 
 ### Credits ###
 Thanks to @mezz64 for developing the previous Eight Sleep integration.
