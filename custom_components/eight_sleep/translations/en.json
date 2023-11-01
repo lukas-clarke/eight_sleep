@@ -39,7 +39,7 @@
         }
         ,
         "side_on": {
-            "description": "Turns on 8 sleep side into smart mode.",
+            "description": "Turns on 8 sleep side in smart mode.",
             "name": "Side On"
         }
     }
