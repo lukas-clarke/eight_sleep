@@ -3,9 +3,11 @@
     "name": "Eight Sleep",
     "codeowners": ["@lukas-clarke"],
     "config_flow": true,
-    "documentation": "https://github.com/lukas-clarke/pyEight",
+    "documentation": "https://github.com/lukas-clarke/eight_sleep",
     "iot_class": "cloud_polling",
     "loggers": ["pyEight"],
-    "requirements": ["httpx", "dataclasses"],
-    "version": "1.0.0"
-  }
+    "requirements": ["httpx", "aiohttp"],
+    "version": "1.0.0",
+    "integration_type": "hub",
+    "issue_tracker": "https://github.com/lukas-clarke/eight_sleep/issues"
+}
