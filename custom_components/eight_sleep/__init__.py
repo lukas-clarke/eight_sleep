@@ -213,45 +213,43 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         identifiers = {(DOMAIN, _get_device_unique_id(eight, self._user_obj))}
         self._attr_device_info = DeviceInfo(identifiers=identifiers)
 
-    async def async_heat_set(self, target: int, duration: int) -> None:
-        """Handle eight sleep service calls."""
+    async def _generic_service_call(self, service_method):
         if self._user_obj is None:
             raise HomeAssistantError(
                 "This entity does not support the heat set service."
             )
-
-        await self._user_obj.set_heating_level(target, duration)
+        await service_method()
         config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
             self._config_entry.entry_id
         ]
         await config_entry_data.heat_coordinator.async_request_refresh()
+
+    async def async_heat_set(self, target: int, duration: int) -> None:
+        """Handle eight sleep service calls."""
+        await self._generic_service_call(
+            lambda: self._user_obj.set_heating_level(target, duration)
+        )
 
     async def async_side_off(
         self,
     ) -> None:
         """Handle eight sleep side off calls."""
-        if self._user_obj is None:
-            raise HomeAssistantError(
-                "This entity does not support the heat set service."
-            )
-
-        await self._user_obj.turn_off_side()
-        config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
-            self._config_entry.entry_id
-        ]
-        await config_entry_data.heat_coordinator.async_request_refresh()
+        await self._generic_service_call(self._user_obj.turn_off_side)
 
     async def async_side_on(
         self,
     ) -> None:
         """Handle eight sleep side on calls."""
-        if self._user_obj is None:
-            raise HomeAssistantError(
-                "This entity does not support the heat set service."
-            )
+        await self._generic_service_call(self._user_obj.turn_on_side)
 
-        await self._user_obj.turn_on_side()
-        config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
-            self._config_entry.entry_id
-        ]
-        await config_entry_data.heat_coordinator.async_request_refresh()
+    async def async_start_away_mode(
+        self,
+    ) -> None:
+        """Handle eight sleep start away mode calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_away_mode("start"))
+
+    async def async_stop_away_mode(
+        self,
+    ) -> None:
+        """Handle eight sleep start away mode calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_away_mode("end"))

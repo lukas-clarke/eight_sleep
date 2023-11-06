@@ -28,3 +28,13 @@ side_on:
     entity:
       integration: eight_sleep
       domain: sensor
+away_mode_start:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+away_mode_stop:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
