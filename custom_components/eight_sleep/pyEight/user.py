@@ -651,6 +651,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {"currentState": {"type": "off"}}
         await self.device.api_request("PUT", url, data=data)
 
+    async def set_away_mode(self, action: str):
+        """Sets the away mode. The action can either be 'start' or 'stop'"""
+        url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
+        now = str(datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
+        if action != "start" and action != "stop":
+            raise Exception(f"Invalid action: {action}")
+        data = {"awayPeriod": {action: now}}
+        await self.device.api_request("PUT", url, data=data)
+
     async def update_user_profile(self) -> None:
         """Update user profile data."""
         url = f"{CLIENT_API_URL}/users/{self.user_id}"
