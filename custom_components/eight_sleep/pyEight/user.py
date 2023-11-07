@@ -2,7 +2,7 @@
 pyeight.user
 ~~~~~~~~~~~~~~~~~~~~
 Provides user data for Eight Sleep
-Copyright (c) 2017-2022 John Mihalic <https://github.com/mezz64>
+Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 """
 from __future__ import annotations
@@ -655,12 +655,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def set_away_mode(self, action: str):
         """Sets the away mode. The action can either be 'start' or 'stop'"""
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
-        now = str(
-            (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
-                :-3
-            ]
-            + "Z"
-        )
+        # Setting time to UTC of 24 hours ago to get API to trigger immediately
+        now = str((datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")
         if action != "start" and action != "end":
             raise Exception(f"Invalid action: {action}")
         data = {"awayPeriod": {action: now}}

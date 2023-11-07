@@ -2,7 +2,7 @@
 pyeight.constants
 ~~~~~~~~~~~~~~~~~~~~
 Constants list
-Copyright (c) 2017-2022 John Mihalic <https://github.com/mezz64>
+Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 """
 
