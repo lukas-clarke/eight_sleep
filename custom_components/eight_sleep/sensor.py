@@ -29,6 +29,8 @@ from .const import (
     SERVICE_HEAT_SET,
     SERVICE_SIDE_OFF,
     SERVICE_SIDE_ON,
+    SERVICE_AWAY_MODE_START,
+    SERVICE_AWAY_MODE_STOP
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -120,6 +122,16 @@ async def async_setup_entry(
         SERVICE_SIDE_ON,
         {},
         "async_side_on",
+    )
+    platform.async_register_entity_service(
+        SERVICE_AWAY_MODE_START,
+        {},
+        "async_start_away_mode",
+    )
+    platform.async_register_entity_service(
+        SERVICE_AWAY_MODE_STOP,
+        {},
+        "async_stop_away_mode",
     )
 
 

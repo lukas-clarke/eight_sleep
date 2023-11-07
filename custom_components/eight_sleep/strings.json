@@ -42,6 +42,16 @@
       "name": "Side On",
       "description": "Turns on 8 sleep side in smart mode."
 
+    },
+    "away_mode_start": {
+      "name": "Start Away Mode",
+      "description": "Turns on away mode for the 8 sleep side."
+
+    },
+    "away_mode_stop": {
+      "name": "Stop Away Mode",
+      "description": "Turns off away mode for the 8 sleep side."
+
     }
   }
 }

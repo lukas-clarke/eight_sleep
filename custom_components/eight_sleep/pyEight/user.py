@@ -2,7 +2,7 @@
 pyeight.user
 ~~~~~~~~~~~~~~~~~~~~
 Provides user data for Eight Sleep
-Copyright (c) 2017-2022 John Mihalic <https://github.com/mezz64>
+Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ import statistics
 from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
 
+from .constants import *
 from .constants import *
 
 if TYPE_CHECKING:
@@ -649,6 +650,16 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Turns on the side of the user"""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
         data = {"currentState": {"type": "off"}}
+        await self.device.api_request("PUT", url, data=data)
+
+    async def set_away_mode(self, action: str):
+        """Sets the away mode. The action can either be 'start' or 'stop'"""
+        url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
+        # Setting time to UTC of 24 hours ago to get API to trigger immediately
+        now = str((datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")
+        if action != "start" and action != "end":
+            raise Exception(f"Invalid action: {action}")
+        data = {"awayPeriod": {action: now}}
         await self.device.api_request("PUT", url, data=data)
 
     async def update_user_profile(self) -> None:

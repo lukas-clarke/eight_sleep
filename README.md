@@ -42,12 +42,17 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Turns off 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 - Side On
   - Turns on 8 sleep side in smart mode. Input entity must be a <..>_bed_temperature entity.
+- Start Away Mode
+  - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
+- Stop Away Mode
+  - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 
 ## TODO ##
 - Streamline process for getting client_id and client_secret. It would be nice to have it (mostly) scripted or to have a preconfigured AVD available to get the values.
 - Translate "Heat Set" values to temperature values in degrees for easier use.
+- Add increment and decrement functionality, so that something like a smart button can be used to increase/decrease temp.
 
 ### Credits ###
-Thanks to @mezz64 for developing the previous Eight Sleep integration.
+Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 
 This is also based on work from https://github.com/lukas-clarke/pyEight and I will likely maintain this repo over the aforementioned one.
