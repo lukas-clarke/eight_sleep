@@ -9,15 +9,22 @@ Home Assistant Eight Sleep integration that works with Eight Sleep's V2 API and 
 1. Add this repository to HACS *AS A CUSTOM REPOSITORY*.
 2. Search for *Eight Sleep*, and choose install. 
 3. Reboot Home Assistant and configure from the "Add Integration" flow.
+a. NOTE: Ensure neither side is in away mode when setting up the Eight Sleep integration.
 
 ## Prerequisites ##
 ### Authentication ###
+ 
+
 To get the OAuth2 login to work you need:
+- user email
+- user password
+
+UPDATE: You now only need your user name and password for Eight Sleep's current OAuth2 implementation. If you don't have your client_id and/or client_secret, leave those values blank when setting up the integration.
+<strike>
 
 - client_id
 - client_secret
-- user email
-- user password
+
 
 To get the client_id and client_secret you can setup a packet capture and a mitm CA to get the unencrypted traffic from your app. You can also decompile the APK to get the values.
 
@@ -30,7 +37,7 @@ The process I used was:
 - Install the mitm cert (mitmproxy-ca-cert.cert)
 - https://emanuele-f.github.io/PCAPdroid/tls_decryption the MagiskTrustUserCerts module, and then install the hashed certificate (replace mitmproxy-ca-cert.cer with the PCAPdroid certificate name) as a system certificate. 	
 - Run the app and capture date in pcapdroid. 
-  - Make sure you capture the data during an app login session. The data should be in the POST request from the app to auth-api.8slp.net.
+  - Make sure you capture the data during an app login session. The data should be in the POST request from the app to auth-api.8slp.net.~~</strike>
 
 ## Usage ##
 The integration will function similarly to the previous Home Assistant core Eight Sleep integration. It will import the Eight Sleep bed sides and account as devices.

@@ -35,10 +35,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
-        vol.Required(CONF_CLIENT_ID): TextSelector(
+        vol.Optional(CONF_CLIENT_ID): TextSelector(
             TextSelectorConfig(type=TextSelectorType.TEXT)
         ),
-        vol.Required(CONF_CLIENT_SECRET): TextSelector(
+        vol.Optional(CONF_CLIENT_SECRET): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
     }
