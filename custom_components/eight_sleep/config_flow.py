@@ -54,13 +54,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Validate input data and return any error."""
         await self.async_set_unique_id(config[CONF_USERNAME].lower())
         self._abort_if_unique_id_configured()
-
+        if CONF_CLIENT_ID in config:
+            client_id = config[CONF_CLIENT_ID]
+        else:
+            client_id = None
+        if CONF_CLIENT_SECRET in config:
+            client_secret = config[CONF_CLIENT_SECRET]
+        else:
+            client_secret = None
         eight = EightSleep(
             config[CONF_USERNAME],
             config[CONF_PASSWORD],
-            config[CONF_CLIENT_ID],
-            config[CONF_CLIENT_SECRET],
             self.hass.config.time_zone,
+            client_id,
+            client_secret,
             client_session=async_get_clientsession(self.hass),
         )
 
