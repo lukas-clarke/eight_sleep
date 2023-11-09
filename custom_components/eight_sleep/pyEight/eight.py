@@ -35,16 +35,23 @@ class EightSleep:
         self,
         email: str,
         password: str,
-        client_id: str,
-        client_secret: str,
         timezone: str,
+        client_id: str = None,
+        client_secret: str = None,
         client_session: ClientSession | None = None,
         check_auth: bool = False,
     ) -> None:
         """Initialize eight sleep class."""
         self._email = email
         self._password = password
+        # If client_id isn't set, use the default value
+        if not client_id:
+            client_id = "0894c7f33bb94800a03f1f4df13a4f38"
         self._client_id = client_id
+        # client_secret isn't required for current Eight Sleep API auth
+        # but can't be empty value, so setting random string if not set
+        if not client_secret:
+            client_secret = "ASDF"
         self._client_secret = client_secret
 
         self.timezone = timezone
