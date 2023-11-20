@@ -12,6 +12,7 @@ import logging
 import statistics
 from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
+import pytz
 
 from .constants import *
 from .constants import *
@@ -31,9 +32,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.user_id = user_id
         self.side = side
         self._user_profile: dict[str, Any] = {}
-
         self.trends: list[dict[str, Any]] = []
         self.intervals: list[dict[str, Any]] = []
+        self.next_alarm = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -345,6 +346,22 @@ class EightUser:  # pylint: disable=too-many-public-methods
             "wakeup": self.current_wakeup_consistency_score,
         }
 
+    # @property
+    # def next_alarm(self) -> datetime | None:
+    #     date_string = "2023-11-23T16:00:00Z"
+    #     date_format = "%Y-%m-%dT%H:%M:%SZ"
+    #     # Convert string to datetime object
+    #     datetime_object = datetime.strptime(date_string, date_format)
+    #     # Set the timezone to UTC
+    #     utc_timezone = pytz.UTC
+    #     datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
+    #     # Set the timezone to a specific timezone
+    #     timezone = pytz.timezone(self.device.timezone)
+    #     datetime_object_with_tz = datetime_object_utc.astimezone(timezone)
+
+    #     # return datetime_object_with_tz
+    #     return None
+
     @property
     def last_session_date(self) -> datetime | None:
         """Return date/time for start of last session data."""
@@ -622,6 +639,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.update_trend_data(
             start.strftime(DATE_FORMAT), end.strftime(DATE_FORMAT)
         )
+        await self.update_routines_data()
 
     async def set_heating_level(self, level: int, duration: int = 0) -> None:
         """Update heating data json."""
@@ -630,7 +648,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data_for_level = {"currentLevel": level}
         # Catch bad low inputs
         level = max(-100, level)
-
         # Catch bad high inputs
         level = min(100, level)
 
@@ -639,6 +656,25 @@ class EightUser:  # pylint: disable=too-many-public-methods
             "PUT", url, data=data_for_level
         )  # Set heating level before duration
         await self.device.api_request("PUT", url, data=data_for_duration)
+
+    async def increment_heating_level(self, offset: int) -> None:
+        """Increment heating level with offset"""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        current_level = await self.get_current_heating_level()
+        new_level = current_level + offset
+        # Catch bad low inputs
+        new_level = max(-100, new_level)
+        # Catch bad high inputs
+        new_level = min(100, new_level)
+
+        data_for_level = {"currentLevel": new_level}
+
+        await self.device.api_request("PUT", url, data=data_for_level)
+
+    async def get_current_heating_level(self) -> int:
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        resp = await self.device.api_request("GET", url)
+        return int(resp["currentLevel"])
 
     async def turn_on_side(self):
         """Turns on the side of the user"""
@@ -656,7 +692,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Sets the away mode. The action can either be 'start' or 'stop'"""
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
         # Setting time to UTC of 24 hours ago to get API to trigger immediately
-        now = str((datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")
+        now = str(
+            (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
+                :-3
+            ]
+            + "Z"
+        )
         if action != "start" and action != "end":
             raise Exception(f"Invalid action: {action}")
         data = {"awayPeriod": {action: now}}
@@ -689,3 +730,26 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         intervals = await self.device.api_request("get", url)
         self.intervals = intervals.get("intervals", [])
+
+    async def update_routines_data(self) -> None:
+        url = APP_API_URL + f"v2/users/{self.user_id}/routines"
+        resp = await self.device.api_request("GET", url)
+
+        try:
+            nextTimestamp = resp["state"]["nextAlarm"]["nextTimestamp"]
+        except KeyError:
+            nextTimestamp = None
+
+        if not nextTimestamp:
+            self.next_alarm = None
+            return
+
+        date_format = "%Y-%m-%dT%H:%M:%SZ"
+        # Convert string to datetime object
+        datetime_object = datetime.strptime(nextTimestamp, date_format)
+        # Set the timezone to UTC
+        utc_timezone = pytz.UTC
+        datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
+        # Set the timezone to a specific timezone
+        timezone = pytz.timezone(self.device.timezone)
+        self.next_alarm = datetime_object_utc.astimezone(timezone)

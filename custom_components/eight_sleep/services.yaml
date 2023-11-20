@@ -18,6 +18,19 @@ heat_set:
           min: -100
           max: 100
           unit_of_measurement: "°"
+heat_increment:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    target:
+      required: true
+      selector:
+        number:
+          min: -100
+          max: 100
+          unit_of_measurement: "°"
 side_off:
   target:
     entity:
