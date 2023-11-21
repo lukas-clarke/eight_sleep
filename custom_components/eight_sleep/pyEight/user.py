@@ -676,12 +676,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Sets the away mode. The action can either be 'start' or 'stop'"""
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
         # Setting time to UTC of 24 hours ago to get API to trigger immediately
-        now = str(
-            (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
-                :-3
-            ]
-            + "Z"
-        )
+        now = str((datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")
         if action != "start" and action != "end":
             raise Exception(f"Invalid action: {action}")
         data = {"awayPeriod": {action: now}}
