@@ -346,22 +346,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
             "wakeup": self.current_wakeup_consistency_score,
         }
 
-    # @property
-    # def next_alarm(self) -> datetime | None:
-    #     date_string = "2023-11-23T16:00:00Z"
-    #     date_format = "%Y-%m-%dT%H:%M:%SZ"
-    #     # Convert string to datetime object
-    #     datetime_object = datetime.strptime(date_string, date_format)
-    #     # Set the timezone to UTC
-    #     utc_timezone = pytz.UTC
-    #     datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
-    #     # Set the timezone to a specific timezone
-    #     timezone = pytz.timezone(self.device.timezone)
-    #     datetime_object_with_tz = datetime_object_utc.astimezone(timezone)
-
-    #     # return datetime_object_with_tz
-    #     return None
-
     @property
     def last_session_date(self) -> datetime | None:
         """Return date/time for start of last session data."""
