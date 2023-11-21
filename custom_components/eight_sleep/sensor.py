@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature
+from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import (
     AddEntitiesCallback,
@@ -27,10 +27,11 @@ from .const import (
     ATTR_TARGET,
     DOMAIN,
     SERVICE_HEAT_SET,
+    SERVICE_HEAT_INCREMENT,
     SERVICE_SIDE_OFF,
     SERVICE_SIDE_ON,
     SERVICE_AWAY_MODE_START,
-    SERVICE_AWAY_MODE_STOP
+    SERVICE_AWAY_MODE_STOP,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -66,6 +67,7 @@ EIGHT_USER_SENSORS = [
     "last_sleep",
     "bed_temperature",
     "sleep_stage",
+    "next_alarm",
 ]
 EIGHT_HEAT_SENSORS = ["bed_state"]
 EIGHT_ROOM_SENSORS = ["room_temperature"]
@@ -76,6 +78,10 @@ VALID_DURATION = vol.All(vol.Coerce(int), vol.Clamp(min=0, max=28800))
 SERVICE_EIGHT_SCHEMA = {
     ATTR_TARGET: VALID_TARGET_HEAT,
     ATTR_DURATION: VALID_DURATION,
+}
+
+SERVICE_HEAT_INCREMENT_SCHEMA = {
+    ATTR_TARGET: VALID_TARGET_HEAT,
 }
 
 
@@ -112,6 +118,11 @@ async def async_setup_entry(
         SERVICE_HEAT_SET,
         SERVICE_EIGHT_SCHEMA,
         "async_heat_set",
+    )
+    platform.async_register_entity_service(
+        SERVICE_HEAT_INCREMENT,
+        SERVICE_HEAT_INCREMENT_SCHEMA,
+        "async_heat_increment",
     )
     platform.async_register_entity_service(
         SERVICE_SIDE_OFF,
@@ -214,6 +225,10 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         elif self._sensor in ("current_sleep", "last_sleep", "current_sleep_fitness"):
             self._attr_native_unit_of_measurement = "Score"
+        elif self._sensor == "next_alarm":
+            # self._attr_native_unit_of_measurement = UnitOfTime.DAYS
+            self._attr_state_class = SensorDeviceClass.TIMESTAMP
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
         if self._sensor != "sleep_stage":
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -231,6 +246,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if not self._user_obj:
             return None
 
+        if "next_alarm" in self._sensor:
+            return self._user_obj.next_alarm
         if "current" in self._sensor:
             if "fitness" in self._sensor:
                 return self._user_obj.current_sleep_fitness_score

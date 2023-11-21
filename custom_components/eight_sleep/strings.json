@@ -33,6 +33,16 @@
         }
       }
     },
+    "heat_increment": {
+      "name": "Heat Increment",
+      "description": "Offsets the current heating/cooling level",
+      "fields": {
+        "target": {
+          "name": "Increment",
+          "description": "How much to offset the current heating/cooling level. From -100 to 100."
+        }
+      }
+    },
     "side_off": {
       "name": "Side Off",
       "description": "Turns off 8 sleep side."
