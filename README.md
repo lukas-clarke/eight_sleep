@@ -4,12 +4,13 @@
 Home Assistant Eight Sleep integration that works with Eight Sleep's V2 API and OAUTH2
 
 ## Installation
-### HACS (Recommended)
+### HACS
 
 1. Add this repository to HACS *AS A CUSTOM REPOSITORY*.
 2. Search for *Eight Sleep*, and choose install. 
 3. Reboot Home Assistant and configure from the "Add Integration" flow.
-a. NOTE: Ensure neither side is in away mode when setting up the Eight Sleep integration.
+
+NOTE: Ensure neither side is in away mode when setting up the Eight Sleep integration.
 
 ## Prerequisites ##
 ### Authentication ###
@@ -41,23 +42,34 @@ The process I used was:
 
 ## Usage ##
 The integration will function similarly to the previous Home Assistant core Eight Sleep integration. It will import the Eight Sleep bed sides and account as devices.
+<br>Setting the temperature on the bed is between a -100 to 100 range. This range is unit-less in the API.
 
 There are a few services you can use on the <..>_bed_temperature entities:
-- Heat Set
+- **Heat Set**
   - Sets heating/cooling level for a <..>_bed_temperature entity.
-- Side Off
+- **Heat Increment**
+  - Increases/decreases the current heat level for a <..>_bed_temperature entity.
+- **Side Off**
   - Turns off 8 sleep side. Input entity must be a <..>_bed_temperature entity.
-- Side On
+- **Side On**
   - Turns on 8 sleep side in smart mode. Input entity must be a <..>_bed_temperature entity.
-- Start Away Mode
+- **Start Away Mode**
   - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
-- Stop Away Mode
+- **Stop Away Mode**
   - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 
+  <br>
+
+There are a few possible sensor values for each Eight Sleep side. Some ones with caveats are
+- **Bed Presence**
+  - There is no direct way to pull this from the API. There is an algorithm that tries to guess presence depending on if the bed temp is changing or not, but I haven't found it to be very accurate.
+- **Next Alarm**
+  - This will be the datetime value of your next alarm. If you have no alarms set, then it will be set to Unknown.
+  
+Sensor values are updated every 5 minues
+
 ## TODO ##
-- Streamline process for getting client_id and client_secret. It would be nice to have it (mostly) scripted or to have a preconfigured AVD available to get the values.
-- Translate "Heat Set" values to temperature values in degrees for easier use.
-- Add increment and decrement functionality, so that something like a smart button can be used to increase/decrease temp.
+- Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
 
 ### Credits ###
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
