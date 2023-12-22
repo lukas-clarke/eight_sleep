@@ -68,6 +68,7 @@ EIGHT_USER_SENSORS = [
     "bed_temperature",
     "sleep_stage",
     "next_alarm",
+    "bed_state_type",
 ]
 EIGHT_HEAT_SENSORS = ["bed_state"]
 EIGHT_ROOM_SENSORS = ["room_temperature"]
@@ -230,7 +231,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_state_class = SensorDeviceClass.TIMESTAMP
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
-        if self._sensor != "sleep_stage":
+        if self._sensor != "sleep_stage" and self._sensor != "bed_state_type":
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
         _LOGGER.debug(
@@ -248,6 +249,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
 
         if "next_alarm" in self._sensor:
             return self._user_obj.next_alarm
+        if "bed_state_type" in self._sensor:
+            return self._user_obj.bed_state_type
         if "current" in self._sensor:
             if "fitness" in self._sensor:
                 return self._user_obj.current_sleep_fitness_score
