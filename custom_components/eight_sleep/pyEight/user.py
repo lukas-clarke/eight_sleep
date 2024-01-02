@@ -35,6 +35,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.trends: list[dict[str, Any]] = []
         self.intervals: list[dict[str, Any]] = []
         self.next_alarm = None
+        self.bed_state_type = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -242,13 +243,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         # Bed hasn't seen us for 30min so set awake.
         #    stage = 'awake'
 
-        # Second try at forcing awake using heating level
-        if (
-            stage != "awake"
-            and self.heating_level is not None
-            and self.heating_level < 5
-        ):
-            return "awake"
         return stage
 
     @property
@@ -625,6 +619,14 @@ class EightUser:  # pylint: disable=too-many-public-methods
         )
         await self.update_routines_data()
 
+        self.bed_state_type = await self.get_bed_state_type()
+
+    async def get_bed_state_type(self) -> str:
+        """Gets the bed state."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        data = await self.device.api_request("GET", url)
+        return data["currentState"]["type"]
+
     async def set_heating_level(self, level: int, duration: int = 0) -> None:
         """Update heating data json."""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
@@ -640,6 +642,23 @@ class EightUser:  # pylint: disable=too-many-public-methods
             "PUT", url, data=data_for_level
         )  # Set heating level before duration
         await self.device.api_request("PUT", url, data=data_for_duration)
+
+    async def set_smart_heating_level(self, level: int, sleep_stage: str) -> None:
+        """Will set the temperature level at a smart sleep stage"""
+        if sleep_stage not in POSSIBLE_SLEEP_STAGES:
+            raise Exception(
+                f"Invalid sleep stage {sleep_stage}. Should be one of {POSSIBLE_SLEEP_STAGES}"
+            )
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        data = await self.device.api_request("GET", url)
+        sleep_stages_levels = data["smart"]
+        # Catch bad low inputs
+        level = max(-100, level)
+        # Catch bad high inputs
+        level = min(100, level)
+        sleep_stages_levels[sleep_stage] = level
+        data = {"smart": sleep_stages_levels}
+        await self.device.api_request("PUT", url, data=data)
 
     async def increment_heating_level(self, offset: int) -> None:
         """Increment heating level with offset"""
@@ -676,7 +695,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Sets the away mode. The action can either be 'start' or 'stop'"""
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
         # Setting time to UTC of 24 hours ago to get API to trigger immediately
-        now = str((datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")
+        now = str(
+            (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
+                :-3
+            ]
+            + "Z"
+        )
         if action != "start" and action != "end":
             raise Exception(f"Invalid action: {action}")
         data = {"awayPeriod": {action: now}}

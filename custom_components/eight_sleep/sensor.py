@@ -25,6 +25,7 @@ from . import EightSleepBaseEntity, EightSleepConfigEntryData
 from .const import (
     ATTR_DURATION,
     ATTR_TARGET,
+    ATTR_SERVICE_SLEEP_STAGE,
     DOMAIN,
     SERVICE_HEAT_SET,
     SERVICE_HEAT_INCREMENT,
@@ -68,6 +69,7 @@ EIGHT_USER_SENSORS = [
     "bed_temperature",
     "sleep_stage",
     "next_alarm",
+    "bed_state_type",
 ]
 EIGHT_HEAT_SENSORS = ["bed_state"]
 EIGHT_ROOM_SENSORS = ["room_temperature"]
@@ -78,6 +80,7 @@ VALID_DURATION = vol.All(vol.Coerce(int), vol.Clamp(min=0, max=28800))
 SERVICE_EIGHT_SCHEMA = {
     ATTR_TARGET: VALID_TARGET_HEAT,
     ATTR_DURATION: VALID_DURATION,
+    ATTR_SERVICE_SLEEP_STAGE: vol.All(vol.Coerce(str)),
 }
 
 SERVICE_HEAT_INCREMENT_SCHEMA = {
@@ -119,6 +122,11 @@ async def async_setup_entry(
         SERVICE_EIGHT_SCHEMA,
         "async_heat_set",
     )
+    # platform.async_register_entity_service(
+    #     SERVICE_HEAT_SET,
+    #     SERVICE_EIGHT_SCHEMA,
+    #     "async_heat_set",
+    # )
     platform.async_register_entity_service(
         SERVICE_HEAT_INCREMENT,
         SERVICE_HEAT_INCREMENT_SCHEMA,
@@ -226,11 +234,10 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         elif self._sensor in ("current_sleep", "last_sleep", "current_sleep_fitness"):
             self._attr_native_unit_of_measurement = "Score"
         elif self._sensor == "next_alarm":
-            # self._attr_native_unit_of_measurement = UnitOfTime.DAYS
             self._attr_state_class = SensorDeviceClass.TIMESTAMP
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
-        if self._sensor != "sleep_stage":
+        if self._sensor != "sleep_stage" and self._sensor != "bed_state_type":
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
         _LOGGER.debug(
@@ -248,6 +255,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
 
         if "next_alarm" in self._sensor:
             return self._user_obj.next_alarm
+        if "bed_state_type" in self._sensor:
+            return self._user_obj.bed_state_type
         if "current" in self._sensor:
             if "fitness" in self._sensor:
                 return self._user_obj.current_sleep_fitness_score

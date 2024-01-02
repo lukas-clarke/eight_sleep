@@ -25,12 +25,17 @@
       "fields": {
         "duration": {
           "name": "Duration",
-          "description": "Duration to heat/cool at the target level in seconds."
+          "description": "Duration to heat/cool at the target level in seconds. This value is only used if the Sleep Stage is set to 'Set Current Temperature'"
         },
         "target": {
-          "name": "Target",
+          "name": "Target Temperature",
           "description": "Target cooling/heating level from -100 to 100."
+        },
+        "sleep_stage": {
+          "name": "Sleep Stage",
+          "description": "Select which sleep stage to set the temperature for."
         }
+
       }
     },
     "heat_increment": {

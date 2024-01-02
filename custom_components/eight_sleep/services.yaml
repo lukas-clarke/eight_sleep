@@ -18,6 +18,21 @@ heat_set:
           min: -100
           max: 100
           unit_of_measurement: "°"
+    sleep_stage:
+      required: true
+      default: current
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Set Current Temperature
+              value: current
+            - label: Set Bedtime Temperature
+              value: bedTimeLevel
+            - label: Set Early Temperature
+              value: initialSleepLevel
+            - label: Set Late Temperature
+              value: finalSleepLevel
 heat_increment:
   target:
     entity:

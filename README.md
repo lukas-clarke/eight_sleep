@@ -59,6 +59,12 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 
   <br>
+**Example Service Calls**
+
+![Example service call](./images/examples/example_side_on.png)
+
+![Example service call yaml](./images/examples/example_side_on_yaml.png)
+  <br>
 
 There are a few possible sensor values for each Eight Sleep side. Some ones with caveats are
 - **Bed Presence**

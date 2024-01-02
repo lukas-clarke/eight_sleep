@@ -232,11 +232,18 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         ]
         await config_entry_data.heat_coordinator.async_request_refresh()
 
-    async def async_heat_set(self, target: int, duration: int) -> None:
+    async def async_heat_set(
+        self, target: int, duration: int, sleep_stage: str
+    ) -> None:
         """Handle eight sleep heat set calls."""
-        await self._generic_service_call(
-            lambda: self._user_obj.set_heating_level(target, duration)
-        )
+        if sleep_stage == "current":
+            await self._generic_service_call(
+                lambda: self._user_obj.set_heating_level(target, duration)
+            )
+        else:
+            await self._generic_service_call(
+                lambda: self._user_obj.set_smart_heating_level(target, sleep_stage)
+            )
 
     async def async_heat_increment(self, target: int) -> None:
         """Handle eight sleep heat increment calls."""

@@ -19,3 +19,4 @@ SERVICE_AWAY_MODE_STOP = "away_mode_stop"
 
 ATTR_TARGET = "target"
 ATTR_DURATION = "duration"
+ATTR_SERVICE_SLEEP_STAGE = "sleep_stage"
