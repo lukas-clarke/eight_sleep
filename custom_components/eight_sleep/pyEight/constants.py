@@ -57,3 +57,5 @@ CURRENT_STATE_JSON = """
             "type": "smart"
           }
         }"""
+
+POSSIBLE_SLEEP_STAGES = ["bedTimeLevel", "initialSleepLevel", "finalSleepLevel"]

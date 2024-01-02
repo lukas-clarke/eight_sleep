@@ -643,6 +643,23 @@ class EightUser:  # pylint: disable=too-many-public-methods
         )  # Set heating level before duration
         await self.device.api_request("PUT", url, data=data_for_duration)
 
+    async def set_smart_heating_level(self, level: int, sleep_stage: str) -> None:
+        """Will set the temperature level at a smart sleep stage"""
+        if sleep_stage not in POSSIBLE_SLEEP_STAGES:
+            raise Exception(
+                f"Invalid sleep stage {sleep_stage}. Should be one of {POSSIBLE_SLEEP_STAGES}"
+            )
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        data = await self.device.api_request("GET", url)
+        sleep_stages_levels = data["smart"]
+        # Catch bad low inputs
+        level = max(-100, level)
+        # Catch bad high inputs
+        level = min(100, level)
+        sleep_stages_levels[sleep_stage] = level
+        data = {"smart": sleep_stages_levels}
+        await self.device.api_request("PUT", url, data=data)
+
     async def increment_heating_level(self, offset: int) -> None:
         """Increment heating level with offset"""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
