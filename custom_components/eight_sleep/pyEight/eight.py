@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 from datetime import datetime
+import pytz
 import logging
 from typing import Any
 import time
@@ -110,9 +111,48 @@ class EightSleep:
         return self._device_json_list
 
     @property
+    def need_priming(self) -> bool:
+        return self.device_data["needsPriming"]
+
+    @property
+    def is_priming(self) -> bool:
+        return self.device_data["priming"]
+
+    @property
+    def has_water(self) -> bool:
+        return self.device_data["hasWater"]
+
+    @property
+    def last_prime(self):
+        return self.convert_string_to_datetime(self.device_data["lastPrime"])
+
+    @property
     def is_pod(self) -> bool:
         """Return if device is a POD."""
         return self._is_pod
+
+    def convert_string_to_datetime(self, datetime_str):
+        datetime_str = str(datetime_str).strip()
+        # Convert string to datetime object.
+        try:
+            # Try to parse the first format
+            datetime_object = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            try:
+                # Try to parse the second format
+                datetime_object = datetime.strptime(
+                    datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+            except ValueError:
+                # Handle if neither format is matched
+                raise ValueError(f"Unsupported date string format for {datetime_str}")
+
+        # Set the timezone to UTC
+        utc_timezone = pytz.UTC
+        datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
+        # Set the timezone to a specific timezone
+        timezone = pytz.timezone(self.timezone)
+        return datetime_object_utc.astimezone(timezone)
 
     async def _get_auth(self) -> Token:
         data = {

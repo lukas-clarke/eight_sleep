@@ -209,7 +209,8 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         if user_id:
             self._user_obj = self._eight.users[user_id]
 
-        mapped_name = NAME_MAP.get(sensor, sensor.replace("_", " ").title())
+        mapped_name = str(NAME_MAP.get(sensor, sensor.replace("_", " ").title()))
+
         if self._user_obj is not None:
             assert self._user_obj.user_profile
             name = f"{self._user_obj.user_profile['firstName']}'s {mapped_name}"
@@ -224,7 +225,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     async def _generic_service_call(self, service_method):
         if self._user_obj is None:
             raise HomeAssistantError(
-                "This entity does not support the heat set service."
+                "This entity does not support the service call. Ensure you have a target <xxx>_bed_temperature entity set as the target."
             )
         await service_method()
         config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
@@ -274,3 +275,9 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     ) -> None:
         """Handle eight sleep start away mode calls."""
         await self._generic_service_call(lambda: self._user_obj.set_away_mode("end"))
+
+    async def async_prime_pod(
+        self,
+    ) -> None:
+        """Handle eight sleep side off calls."""
+        await self._generic_service_call(self._user_obj.prime_pod)
