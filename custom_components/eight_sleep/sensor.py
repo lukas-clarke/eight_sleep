@@ -13,7 +13,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfTemperature,
+    UnitOfTime,
+    CONF_BINARY_SENSORS,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import (
     AddEntitiesCallback,
@@ -33,6 +38,7 @@ from .const import (
     SERVICE_SIDE_ON,
     SERVICE_AWAY_MODE_START,
     SERVICE_AWAY_MODE_STOP,
+    NAME_MAP,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -63,16 +69,29 @@ ATTR_FIT_WAKEUP_SCORE = "Fitness Wakeup Score"
 _LOGGER = logging.getLogger(__name__)
 
 EIGHT_USER_SENSORS = [
-    "current_sleep",
-    "current_sleep_fitness",
-    "last_sleep",
+    "current_sleep_fitness_score",
+    "current_sleep_quality_score",
+    "current_sleep_routine_score",
+    "time_slept",
+    "current_heart_rate",
+    "current_hrv",
+    "current_breath_rate",
     "bed_temperature",
     "sleep_stage",
     "next_alarm",
     "bed_state_type",
+    "presence_start",
+    "presence_end",
 ]
+
 EIGHT_HEAT_SENSORS = ["bed_state"]
-EIGHT_ROOM_SENSORS = ["room_temperature"]
+EIGHT_ROOM_SENSORS = [
+    "room_temperature",
+    "need_priming",
+    "is_priming",
+    "has_water",
+    "last_prime",
+]
 
 VALID_TARGET_HEAT = vol.All(vol.Coerce(int), vol.Clamp(min=-100, max=100))
 VALID_DURATION = vol.All(vol.Coerce(int), vol.Clamp(min=0, max=28800))
@@ -122,11 +141,6 @@ async def async_setup_entry(
         SERVICE_EIGHT_SCHEMA,
         "async_heat_set",
     )
-    # platform.async_register_entity_service(
-    #     SERVICE_HEAT_SET,
-    #     SERVICE_EIGHT_SCHEMA,
-    #     "async_heat_set",
-    # )
     platform.async_register_entity_service(
         SERVICE_HEAT_INCREMENT,
         SERVICE_HEAT_INCREMENT_SCHEMA,
@@ -151,6 +165,11 @@ async def async_setup_entry(
         SERVICE_AWAY_MODE_STOP,
         {},
         "async_stop_away_mode",
+    )
+    platform.async_register_entity_service(
+        "prime_pod",
+        {},
+        "async_prime_pod",
     )
 
 
@@ -231,8 +250,10 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_icon = "mdi:thermometer"
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-        elif self._sensor in ("current_sleep", "last_sleep", "current_sleep_fitness"):
-            self._attr_native_unit_of_measurement = "Score"
+        elif self._sensor in (NAME_MAP):
+            self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
+            self._attr_state_class = NAME_MAP[self._sensor].device_class
+            self._attr_device_class = NAME_MAP[self._sensor].state_class
         elif self._sensor == "next_alarm":
             self._attr_state_class = SensorDeviceClass.TIMESTAMP
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -253,15 +274,12 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if not self._user_obj:
             return None
 
+        if self._sensor in NAME_MAP:
+            return getattr(self._user_obj, self._sensor)
         if "next_alarm" in self._sensor:
             return self._user_obj.next_alarm
         if "bed_state_type" in self._sensor:
             return self._user_obj.bed_state_type
-        if "current" in self._sensor:
-            if "fitness" in self._sensor:
-                return self._user_obj.current_sleep_fitness_score
-            return self._user_obj.current_sleep_score
-
         if "last" in self._sensor:
             return self._user_obj.last_sleep_score
 
@@ -335,11 +353,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
 class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
     """Representation of an eight sleep room sensor."""
 
-    _attr_icon = "mdi:thermometer"
-    _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-
     def __init__(
         self,
         entry,
@@ -349,8 +362,25 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(entry, coordinator, eight, None, sensor)
+        if self._sensor == "room_temperature":
+            self._attr_icon = "mdi:thermometer"
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        elif self._sensor == "last_prime":
+            self._attr_state_class = SensorDeviceClass.TIMESTAMP
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        else:
+            self._attr_state_class = CONF_BINARY_SENSORS
+            self._attr_device_class = CONF_BINARY_SENSORS
 
     @property
     def native_value(self) -> int | float | None:
         """Return the state of the sensor."""
-        return self._eight.room_temperature
+        # return self._eight.room_temperature
+        return getattr(self._eight, self._sensor)
+
+    def turn_on(self, **kwargs: Any) -> None:
+        a = 1
+        b = 2
+        c = a + b

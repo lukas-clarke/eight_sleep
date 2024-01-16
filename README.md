@@ -57,6 +57,8 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 - **Stop Away Mode**
   - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
+- **Prime Pod**
+  - Will start the bed priming. Input entity must be a <..>_bed_temperature entity. The user side that calls this service is the one that will be notified when it is finished.
 
   <br>
 **Example Service Calls**
@@ -71,13 +73,39 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
   - There is no direct way to pull this from the API. There is an algorithm that tries to guess presence depending on if the bed temp is changing or not, but I haven't found it to be very accurate.
 - **Next Alarm**
   - This will be the datetime value of your next alarm. If you have no alarms set, then it will be set to Unknown.
-  
-Sensor values are updated every 5 minues
+
+| Entity                  | Owner | Type        | Reliable | Notes                                                                                                                                                                                           |
+|-------------------------|-------|-------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Has Water               | Bed   | Boolean     | Yes      |                                                                                                                                                                                                 |
+| Is Priming              | Bed   | Boolean     | Yes      |                                                                                                                                                                                                 |
+| Last Prime              | Bed   | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Needs Priming           | Bed   | Boolean     | Yes      |                                                                                                                                                                                                 |
+| Room Temperature        | Bed   | Temperature | Yes      |                                                                                                                                                                                                 |
+| Bed Presence            | Side  | Presence    | **No**   | Uses behaviours from bed to try and predict presence. <br>Since eight sleep doesn't expose live presence in the API, can't currently pull a reliable value.                                     |
+| Bed State               | Side  | Percent     | Sort Of  | This value is pulled directly from the API and relates to the target heating level. While it may not seem to relate to anything, some people are able to use it to correlate a bed presence to. |
+| Bed State Type          | Side  | String      | Yes      | Options are: "off", "smart:bedtime", "smart:initial", "smart:final"                                                                                                                             |
+| Bed Temperature         | Side  | Temperature | **No**   |                                                                                                                                                                                                 |
+| Breath Rate             | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| Heart Rate              | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| HRV                     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| Next Alarm              | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Previous Presence End   | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
+| Previous Presence Start | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
+| Sleep Fitness Score     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| Sleep Quality Score     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| Routine Score           | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
+| Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
+| Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
+Sensor values are updated every 5 minutes
 
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
+- Add device actions, so they can be used instead of service calls.
+- Add the target temperature as a sensor
 
 ### Credits ###
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 
 This is also based on work from https://github.com/lukas-clarke/pyEight and I will likely maintain this repo over the aforementioned one.
+
+<a href="https://www.buymeacoffee.com/lukasclarke" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>

@@ -46,6 +46,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if len(self.trends) < trend_num + 1:
             return None
         data = self.trends[-(trend_num + 1)]
+        # data = self.trends[trend_num]
         if isinstance(keys, str):
             return data.get(keys)
         if self.trends:
@@ -53,9 +54,13 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 data = data.get(key, {})
         return data.get(keys[-1])
 
-    def _get_fitness_score(self, trend_num: int, key: str) -> Any:
+    def _get_quality_score(self, trend_num: int, key: str) -> Any:
         """Get fitness score for specified key."""
-        return self._get_trend(trend_num, ("sleepFitnessScore", key, "score"))
+        return self._get_trend(trend_num, ("sleepQualityScore", key, "score"))
+
+    def _get_routine_score(self, trend_num: int, key: str) -> Any:
+        """Get fitness score for specified key."""
+        return self._get_trend(trend_num, ("sleepRoutineScore", key, "score"))
 
     def _get_sleep_score(self, interval_num: int) -> int | None:
         """Return sleep score for a given interval."""
@@ -253,27 +258,69 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def current_sleep_fitness_score(self) -> int | None:
         """Return sleep fitness score for latest session."""
-        return self._get_trend(0, ("sleepFitnessScore", "total"))
+        # return self._get_trend(0, ("sleepFitnessScore", "total"))
+        return self._get_trend(0, "score")
+
+    @property
+    def current_sleep_quality_score(self) -> int | None:
+        return self._get_trend(0, ("sleepQualityScore", "total"))
+
+    @property
+    def current_sleep_routine_score(self) -> int | None:
+        return self._get_trend(0, ("sleepRoutineScore", "total"))
 
     @property
     def current_sleep_duration_score(self) -> int | None:
         """Return sleep duration score for latest session."""
-        return self._get_fitness_score(0, "sleepDurationSeconds")
+        return self._get_quality_score(0, "sleepDurationSeconds")
 
     @property
     def current_latency_asleep_score(self) -> int | None:
         """Return latency asleep score for latest session."""
-        return self._get_fitness_score(0, "latencyAsleepSeconds")
+        return self._get_routine_score(0, "latencyAsleepSeconds")
+
+    @property
+    def time_slept(self) -> int | None:
+        return self._get_trend(0, ("sleepDuration"))
+
+    @property
+    def presence_start(self):
+        timestamp = self._get_trend(0, "presenceStart")
+        if timestamp:
+            return self.device.convert_string_to_datetime(timestamp)
+
+    @property
+    def presence_end(self):
+        timestamp = self._get_trend(0, "presenceEnd")
+        if timestamp:
+            return self.device.convert_string_to_datetime(timestamp)
 
     @property
     def current_latency_out_score(self) -> int | None:
         """Return latency out score for latest session."""
-        return self._get_fitness_score(0, "latencyOutSeconds")
+        return self._get_routine_score(0, "latencyOutSeconds")
+
+    @property
+    def current_hrv(self) -> int | None:
+        """Return wakeup consistency score for latest session."""
+        return str(self._get_trend(0, ("sleepQualityScore", "hrv", "current")))
+
+    @property
+    def current_heart_rate(self) -> int | None:
+        """Return wakeup consistency score for latest session."""
+        return str(self._get_trend(0, ("sleepRoutineScore", "heartRate", "current")))
+
+    @property
+    def current_breath_rate(self) -> int | None:
+        """Return wakeup consistency score for latest session."""
+        return str(
+            self._get_trend(0, ("sleepQualityScore", "respiratoryRate", "current"))
+        )
 
     @property
     def current_wakeup_consistency_score(self) -> int | None:
         """Return wakeup consistency score for latest session."""
-        return self._get_fitness_score(0, "wakeupConsistency")
+        return self._get_routine_score(0, "wakeupConsistency")
 
     @property
     def current_fitness_session_date(self) -> str | None:
@@ -363,22 +410,22 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def last_sleep_duration_score(self) -> int | None:
         """Return sleep duration score for previous session."""
-        return self._get_fitness_score(1, "sleepDurationSeconds")
+        return self._get_quality_score(1, "sleepDurationSeconds")
 
     @property
     def last_latency_asleep_score(self) -> int | None:
         """Return latency asleep score for previous session."""
-        return self._get_fitness_score(1, "latencyAsleepSeconds")
+        return self._get_routine_score(1, "latencyAsleepSeconds")
 
     @property
     def last_latency_out_score(self) -> int | None:
         """Return latency out score for previous session."""
-        return self._get_fitness_score(1, "latencyOutSeconds")
+        return self._get_froutine_score(1, "latencyOutSeconds")
 
     @property
     def last_wakeup_consistency_score(self) -> int | None:
         """Return wakeup consistency score for previous session."""
-        return self._get_fitness_score(1, "wakeupConsistency")
+        return self._get_routine_score(1, "wakeupConsistency")
 
     @property
     def last_fitness_session_date(self) -> str | None:
@@ -679,6 +726,13 @@ class EightUser:  # pylint: disable=too-many-public-methods
         resp = await self.device.api_request("GET", url)
         return int(resp["currentLevel"])
 
+    async def prime_pod(self):
+        url = APP_API_URL + f"v1/devices/{self.device.device_id}/priming/tasks"
+        data_for_priming = {
+            "notifications": {"users": [self.user_id], "meta": "rePriming"}
+        }
+        await self.device.api_request("POST", url, data=data_for_priming)
+
     async def turn_on_side(self):
         """Turns on the side of the user"""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
@@ -716,13 +770,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self._user_profile = profile_data["user"]
 
     async def update_trend_data(self, start_date: str, end_date: str) -> None:
-        """Update trends data json for specified time period."""
+        """Update trends data json for specified time period. V2 of the api used"""
         url = f"{CLIENT_API_URL}/users/{self.user_id}/trends"
         params = {
             "tz": self.device.timezone,
             "from": start_date,
             "to": end_date,
-            # 'include-main': 'true'
+            "include-main": "false",
+            "include-all-sessions": "false",
+            "model-version": "v2",
         }
         trend_data = await self.device.api_request("get", url, params=params)
         self.trends = trend_data.get("days", [])
@@ -747,12 +803,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self.next_alarm = None
             return
 
-        date_format = "%Y-%m-%dT%H:%M:%SZ"
-        # Convert string to datetime object
-        datetime_object = datetime.strptime(nextTimestamp, date_format)
+        self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
+
+    def _convert_string_to_datetime(self, datetime_str):
+        datetime_str = str(datetime_str).strip()
+        # Convert string to datetime object.
+        try:
+            # Try to parse the first format
+            datetime_object = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            try:
+                # Try to parse the second format
+                datetime_object = datetime.strptime(
+                    datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+            except ValueError:
+                # Handle if neither format is matched
+                raise ValueError(f"Unsupported date string format for {datetime_str}")
+
         # Set the timezone to UTC
         utc_timezone = pytz.UTC
         datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
         # Set the timezone to a specific timezone
         timezone = pytz.timezone(self.device.timezone)
-        self.next_alarm = datetime_object_utc.astimezone(timezone)
+        return datetime_object_utc.astimezone(timezone)
