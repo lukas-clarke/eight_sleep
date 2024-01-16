@@ -89,14 +89,14 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Heart Rate              | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | HRV                     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Next Alarm              | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
-| Previous Presence End   | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
-| Previous Presence Start | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Previous Presence End   | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
+| Previous Presence Start | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
 | Sleep Fitness Score     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Sleep Quality Score     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Routine Score           | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
 | Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
-Sensor values are updated every 5 minues
+Sensor values are updated every 5 minutes
 
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
@@ -107,3 +107,5 @@ Sensor values are updated every 5 minues
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 
 This is also based on work from https://github.com/lukas-clarke/pyEight and I will likely maintain this repo over the aforementioned one.
+
+<a href="https://www.buymeacoffee.com/lukasclarke" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
