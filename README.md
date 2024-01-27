@@ -53,6 +53,10 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Turns off 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 - **Side On**
   - Turns on 8 sleep side in smart mode. Input entity must be a <..>_bed_temperature entity.
+- **Alarm Snooze**
+  - Snoozes an active alarm on a <..>_bed_temperature entity for a specified number of minutes.
+- **Alarm Stop**
+  - Stops an active alarm on a <..>_bed_temperature entity.
 - **Start Away Mode**
   - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 - **Stop Away Mode**
@@ -88,7 +92,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Breath Rate             | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Heart Rate              | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | HRV                     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
-| Next Alarm              | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Next Alarm              | Side  | Datetime    | Yes      | The alarm ID is available as an attribute on the sensor.                                                                                                                                        |
 | Previous Presence End   | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
 | Previous Presence Start | Side  | Datetime    | Yes      | Unfortunately can't be used for Bed Presence because this doesn't update until after the sleep session is over.                                                                                 |
 | Sleep Fitness Score     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |

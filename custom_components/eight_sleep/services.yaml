@@ -56,6 +56,24 @@ side_on:
     entity:
       integration: eight_sleep
       domain: sensor
+alarm_snooze:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    duration:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: minutes
+alarm_stop:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
 away_mode_start:
   target:
     entity:

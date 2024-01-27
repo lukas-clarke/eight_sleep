@@ -264,6 +264,14 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         """Handle eight sleep side on calls."""
         await self._generic_service_call(self._user_obj.turn_on_side)
 
+    async def async_alarm_snooze(self, duration: int) -> None:
+        """Handle eight sleep alarm snooze calls."""
+        await self._generic_service_call(lambda: self._user_obj.alarm_snooze(duration))
+
+    async def async_alarm_stop(self) -> None:
+        """Handle eight sleep alarm stop calls."""
+        await self._generic_service_call(self._user_obj.alarm_stop)
+
     async def async_start_away_mode(
         self,
     ) -> None:

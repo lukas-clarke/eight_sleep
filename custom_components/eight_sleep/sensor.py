@@ -36,6 +36,8 @@ from .const import (
     SERVICE_HEAT_INCREMENT,
     SERVICE_SIDE_OFF,
     SERVICE_SIDE_ON,
+    SERVICE_ALARM_SNOOZE,
+    SERVICE_ALARM_STOP,
     SERVICE_AWAY_MODE_START,
     SERVICE_AWAY_MODE_STOP,
     NAME_MAP,
@@ -65,6 +67,7 @@ ATTR_FIT_DURATION_SCORE = "Fitness Duration Score"
 ATTR_FIT_ASLEEP_SCORE = "Fitness Asleep Score"
 ATTR_FIT_OUT_SCORE = "Fitness Out-of-Bed Score"
 ATTR_FIT_WAKEUP_SCORE = "Fitness Wakeup Score"
+ATTR_ALARM_ID = "Alarm ID"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,6 +107,11 @@ SERVICE_EIGHT_SCHEMA = {
 
 SERVICE_HEAT_INCREMENT_SCHEMA = {
     ATTR_TARGET: VALID_TARGET_HEAT,
+}
+
+VALID_SNOOZE_DURATION = vol.All(vol.Coerce(int), vol.Clamp(min=1, max=1440))
+SERVICE_ALARM_SNOOZE_SCHEMA = {
+    ATTR_DURATION: VALID_SNOOZE_DURATION,
 }
 
 
@@ -155,6 +163,16 @@ async def async_setup_entry(
         SERVICE_SIDE_ON,
         {},
         "async_side_on",
+    )
+    platform.async_register_entity_service(
+        SERVICE_ALARM_SNOOZE,
+        SERVICE_ALARM_SNOOZE_SCHEMA,
+        "async_alarm_snooze",
+    )
+    platform.async_register_entity_service(
+        SERVICE_ALARM_STOP,
+        {},
+        "async_alarm_stop",
     )
     platform.async_register_entity_service(
         SERVICE_AWAY_MODE_START,
@@ -302,6 +320,11 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                 attr = self._user_obj.current_values
         elif "last" in self._sensor and self._user_obj:
             attr = self._user_obj.last_values
+        elif "next_alarm" in self._sensor and self._user_obj:
+            state_attr = {
+                ATTR_ALARM_ID: self._user_obj.next_alarm_id,
+            }
+            return state_attr
 
         if attr is None:
             # Skip attributes if sensor type doesn't support
