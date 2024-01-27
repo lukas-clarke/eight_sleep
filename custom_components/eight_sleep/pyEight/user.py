@@ -35,6 +35,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.trends: list[dict[str, Any]] = []
         self.intervals: list[dict[str, Any]] = []
         self.next_alarm = None
+        self.next_alarm_id = None
         self.bed_state_type = None
 
         # Variables to do dynamic presence
@@ -739,6 +740,33 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {"currentState": {"type": "smart"}}
         await self.device.api_request("PUT", url, data=data)
 
+    async def alarm_snooze(self, snooze_minutes: int):
+        """Snoozes the user alarm for the specified minutes"""
+        if not self.next_alarm_id:
+            raise Exception(f"No next alarm ID set for {self.user_id}")
+        url = APP_API_URL + f"v1/users/{self.user_id}/routines"
+        data = {
+            "alarm": {
+                "alarmId": self.next_alarm_id,
+                "snoozeForMinutes": snooze_minutes
+            }
+        }
+        resp = await self.device.api_request("PUT", url, data=data)
+
+
+    async def alarm_stop(self):
+        """Snoozes the user alarm for the specified minutes"""
+        if not self.next_alarm_id:
+            raise Exception(f"No next alarm ID set for {self.user_id}")
+        url = APP_API_URL + f"v1/users/{self.user_id}/routines"
+        data = {
+            "alarm": {
+                "alarmId": self.next_alarm_id,
+                "stopped": True
+            }
+        }
+        await self.device.api_request("PUT", url, data=data)
+
     async def turn_off_side(self):
         """Turns on the side of the user"""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
@@ -801,9 +829,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         if not nextTimestamp:
             self.next_alarm = None
+            self.next_alarm_id = None
             return
 
         self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
+        self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
 
     def _convert_string_to_datetime(self, datetime_str):
         datetime_str = str(datetime_str).strip()

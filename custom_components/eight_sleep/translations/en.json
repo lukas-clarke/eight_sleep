@@ -56,6 +56,20 @@
             "description": "Turns on 8 sleep side in smart mode.",
             "name": "Side On"
         },
+        "alarm_snooze": {
+            "description": "Snooze alarm for the 8 sleep side.",
+            "fields": {
+                "duration": {
+                    "description": "Number of minutes to snooze alarm.",
+                    "name": "Duration"
+                }
+            },
+            "name": "Alarm Snooze"
+        },
+        "alarm_stop": {
+            "description": "Stops alarm for the 8 sleep side.",
+            "name": "Alarm Stop"
+        },
         "away_mode_start": {
             "description": "Turns on away mode for the 8 sleep side.",
             "name": "Start Away Mode"
