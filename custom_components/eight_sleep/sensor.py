@@ -409,8 +409,3 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
         """Return the state of the sensor."""
         # return self._eight.room_temperature
         return getattr(self._eight, self._sensor)
-
-    # def turn_on(self, **kwargs: Any) -> None:
-    #     a = 1
-    #     b = 2
-    #     c = a + b
