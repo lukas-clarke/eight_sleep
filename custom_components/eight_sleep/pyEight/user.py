@@ -37,7 +37,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm = None
         self.next_alarm_id = None
         self.bed_state_type = None
-        self.current_side_temp = None  # TODO
+        self.current_side_temp = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -671,9 +671,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         self.bed_state_type = await self.get_bed_state_type()
 
-        """The current heating level seems to correlate to the current
-        bed temperature. But I need to find a way to conver the unitless value
-        to an actual temperature. Marking this as TODO"""
         current_side_temp_raw = await self.get_current_device_level()
         self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
             current_side_temp_raw, "c"
