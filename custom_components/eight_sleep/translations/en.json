@@ -83,8 +83,14 @@
             "name": "Prime Pod"
         },
         "set_bed_side": {
-          "name": "Set Bed Side",
-          "description": "Set the bed side for the targeted user. Options are Both, Left, or Right."
+            "name": "Set Bed Side",
+            "description": "Set the bed side for the targeted user. Options are Both, Left, or Right.",
+            "fields": {
+                "bed_side_state": {
+                    "description": "Which bed side(s) to assign to the user defined in the 'Targets' field",
+                    "name": "Bed Side State"
+                }
+            }
         }
     }
 }
