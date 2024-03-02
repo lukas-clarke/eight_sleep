@@ -189,6 +189,13 @@ async def async_setup_entry(
         {},
         "async_prime_pod",
     )
+    platform.async_register_entity_service(
+        "set_bed_side",
+        {
+            "bed_side_state": vol.All(vol.Coerce(str)),
+        },
+        "async_set_bed_side",
+    )
 
 
 class EightHeatSensor(EightSleepBaseEntity, SensorEntity):
@@ -402,8 +409,3 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
         """Return the state of the sensor."""
         # return self._eight.room_temperature
         return getattr(self._eight, self._sensor)
-
-    def turn_on(self, **kwargs: Any) -> None:
-        a = 1
-        b = 2
-        c = a + b

@@ -287,5 +287,11 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     async def async_prime_pod(
         self,
     ) -> None:
-        """Handle eight sleep side off calls."""
+        """Handle eight sleep prime pod calls."""
         await self._generic_service_call(self._user_obj.prime_pod)
+
+    async def async_set_bed_side(self, bed_side_state: str) -> None:
+        """Handle eight sleep set bide side state."""
+        await self._generic_service_call(
+            lambda: self._user_obj.set_bed_side(bed_side_state)
+        )
