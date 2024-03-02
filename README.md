@@ -63,8 +63,10 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
 - **Prime Pod**
   - Will start the bed priming. Input entity must be a <..>_bed_temperature entity. The user side that calls this service is the one that will be notified when it is finished.
+- **Set Bed Side**
+  - Will set the bed side for the user selected by the <..>_bed_temperature entity as the target. The options are "Both", "Left", or "Right". While the app has an option to set "Away" for the bed side, the API call does not work like that. If you would like to set away status, use the "Start Away Mode" or "Stop Away Mode" service calls.
 
-  <br>
+<br>
 **Example Service Calls**
 
 ![Example service call](./images/examples/example_side_on.png)
@@ -88,7 +90,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Bed Presence            | Side  | Presence    | **No**   | Uses behaviours from bed to try and predict presence. <br>Since eight sleep doesn't expose live presence in the API, can't currently pull a reliable value.                                     |
 | Bed State               | Side  | Percent     | Sort Of  | This value is pulled directly from the API and relates to the target heating level. While it may not seem to relate to anything, some people are able to use it to correlate a bed presence to. |
 | Bed State Type          | Side  | String      | Yes      | Options are: "off", "smart:bedtime", "smart:initial", "smart:final"                                                                                                                             |
-| Bed Temperature         | Side  | Temperature | **No**   |                                                                                                                                                                                                 |
+| Bed Temperature         | Side  | Temperature | Yes      |                                                                                                                                                                                                 |
 | Breath Rate             | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Heart Rate              | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | HRV                     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
@@ -106,7 +108,15 @@ Sensor values are updated every 5 minutes
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
 - Add device actions, so they can be used instead of service calls.
 - Add the target temperature as a sensor
+- Add local device functionality for jailbroken devices using the steps in https://github.com/bobobo1618/ninesleep
 
+## FAQS ##
+- Can I use this integration without an Eight Sleep subscription?
+  - I believe you can use this integration without a subscription. This integration uses the same calls as the app. And I believe the app allows the calls the integration is using, even when not having a subscription.
+I don't have any way to test it out though, because I have a grandfathered account.
+- Can I use this integration to get a reliable, current bed presence?
+  - No. Unfortunately, this a restriction imposed by 8 sleep. The app API doesn't expose bed state. The bed state works by guessing patterns based on the bed temperature changes, but isn't very reliable.
+The only real solution is for 8 sleep to expose the bed state in their API, which they would be able to do since the cover sends that info to their servers.
 ### Credits ###
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 

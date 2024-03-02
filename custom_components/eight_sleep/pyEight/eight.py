@@ -131,6 +131,30 @@ class EightSleep:
         """Return if device is a POD."""
         return self._is_pod
 
+    def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
+        """degree_unit can be 'c' or 'f'
+        I couldn't find a constant algrebraic equation for converting
+        the raw value to degrees so I had to iterate over the whole range
+        and save a conversion map for the values."""
+        if degree_unit.lower() == "c" or degree_unit.lower() == "celsius":
+            unit_map = RAW_TO_CELSIUS_MAP
+        else:
+            unit_map = RAW_TO_FAHRENHEIT_MAP
+
+        last_raw_unit = -100
+        # Mapping the raw unit to an actual degree value
+        # Doing iterative search instead of binary for readability, and because constant size
+        for raw_unit, degree_unit in unit_map.items():
+            if raw_value == raw_unit:
+                return float(degree_unit)
+            if raw_unit > raw_value:
+                last_degree_unit = unit_map[last_raw_unit]
+                ratio = (raw_value - last_raw_unit) / (raw_unit - last_raw_unit)
+                delta_degrees = degree_unit - last_degree_unit
+                return last_degree_unit + (ratio * delta_degrees)
+            last_raw_unit = raw_unit
+        raise Exception(f"Raw value {raw_value} unable to be mapped.")
+
     def convert_string_to_datetime(self, datetime_str):
         datetime_str = str(datetime_str).strip()
         # Convert string to datetime object.
@@ -299,6 +323,7 @@ class EightSleep:
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         input_headers=None,
+        return_json=True,
     ) -> Any:
         """Make api request."""
         if input_headers is not None:
@@ -323,7 +348,10 @@ class EightSleep:
                 # refresh token and try again if request in unauthorized
                 await self.refresh_token()
                 return await self.api_request(method, url, params, data, input_headers)
-            return await resp.json()
+            if return_json:
+                return await resp.json()
+            else:
+                return None
 
         except (ClientError, asyncio.TimeoutError, ConnectionRefusedError) as err:
             _LOGGER.error(f"Error {method}ing Eight data. {err}s")

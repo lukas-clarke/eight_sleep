@@ -37,6 +37,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm = None
         self.next_alarm_id = None
         self.bed_state_type = None
+        self.current_side_temp = None  # TODO
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -336,7 +337,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def current_bed_temp(self) -> int | float | None:
         """Return current bed temperature for in-progress session."""
-        return self._get_current_interval_property_value("tempBedC")
+        # return self._get_current_interval_property_value("tempBedC")
+        return self.current_side_temp
 
     @property
     def current_room_temp(self) -> int | float | None:
@@ -669,6 +671,22 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         self.bed_state_type = await self.get_bed_state_type()
 
+        """The current heating level seems to correlate to the current
+        bed temperature. But I need to find a way to conver the unitless value
+        to an actual temperature. Marking this as TODO"""
+        current_side_temp_raw = await self.get_current_device_level()
+        self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
+            current_side_temp_raw, "c"
+        )
+
+    async def set_bed_side(self, side) -> None:
+        side = str(side).lower()
+        if side not in ["solo", "left", "right"]:
+            raise Exception(f"Invalid side parameter passed in: {side}")
+        url = CLIENT_API_URL + f"/users/{self.user_id}/current-device"
+        data = {"id": str(self.device.device_id), "side": side}
+        await self.device.api_request("PUT", url, data=data, return_json=False)
+
     async def get_bed_state_type(self) -> str:
         """Gets the bed state."""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
@@ -727,6 +745,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
         resp = await self.device.api_request("GET", url)
         return int(resp["currentLevel"])
 
+    async def get_current_device_level(self) -> int:
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        resp = await self.device.api_request("GET", url)
+        return int(resp["currentDeviceLevel"])
+
     async def prime_pod(self):
         url = APP_API_URL + f"v1/devices/{self.device.device_id}/priming/tasks"
         data_for_priming = {
@@ -746,25 +769,16 @@ class EightUser:  # pylint: disable=too-many-public-methods
             raise Exception(f"No next alarm ID set for {self.user_id}")
         url = APP_API_URL + f"v1/users/{self.user_id}/routines"
         data = {
-            "alarm": {
-                "alarmId": self.next_alarm_id,
-                "snoozeForMinutes": snooze_minutes
-            }
+            "alarm": {"alarmId": self.next_alarm_id, "snoozeForMinutes": snooze_minutes}
         }
         resp = await self.device.api_request("PUT", url, data=data)
-
 
     async def alarm_stop(self):
         """Snoozes the user alarm for the specified minutes"""
         if not self.next_alarm_id:
             raise Exception(f"No next alarm ID set for {self.user_id}")
         url = APP_API_URL + f"v1/users/{self.user_id}/routines"
-        data = {
-            "alarm": {
-                "alarmId": self.next_alarm_id,
-                "stopped": True
-            }
-        }
+        data = {"alarm": {"alarmId": self.next_alarm_id, "stopped": True}}
         await self.device.api_request("PUT", url, data=data)
 
     async def turn_off_side(self):

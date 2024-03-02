@@ -89,3 +89,22 @@ prime_pod:
     entity:
       integration: eight_sleep
       domain: sensor
+set_bed_side:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    bed_side_state:
+      required: true
+      default: solo
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Both
+              value: solo
+            - label: Left
+              value: left
+            - label: Right
+              value: right

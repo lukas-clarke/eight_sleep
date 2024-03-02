@@ -81,6 +81,10 @@
         "prime_pod": {
             "description": "Will start the pod priming.",
             "name": "Prime Pod"
+        },
+        "set_bed_side": {
+          "name": "Set Bed Side",
+          "description": "Set the bed side for the targeted user. Options are Both, Left, or Right."
         }
     }
 }
