@@ -1,4 +1,5 @@
 """Support for Eight smart mattress covers and mattresses."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -278,11 +279,12 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         """Handle eight sleep start away mode calls."""
         await self._generic_service_call(lambda: self._user_obj.set_away_mode("start"))
 
-    async def async_stop_away_mode(
-        self,
-    ) -> None:
-        """Handle eight sleep start away mode calls."""
-        await self._generic_service_call(lambda: self._user_obj.set_away_mode("end"))
+    ## The API currently doesn't have a stop for the away mode
+    # async def async_stop_away_mode(
+    #     self,
+    # ) -> None:
+    #     """Handle eight sleep start away mode calls."""
+    #     await self._generic_service_call(lambda: self._user_obj.set_away_mode("end"))
 
     async def async_prime_pod(
         self,

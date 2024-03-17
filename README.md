@@ -59,8 +59,7 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Stops an active alarm on a <..>_bed_temperature entity.
 - **Start Away Mode**
   - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
-- **Stop Away Mode**
-  - Turns off away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
+  - To stop away mode call the *Set Bed Side* service, and select the appropriate side and <..>_bed_temperature entity.
 - **Prime Pod**
   - Will start the bed priming. Input entity must be a <..>_bed_temperature entity. The user side that calls this service is the one that will be notified when it is finished.
 - **Set Bed Side**
