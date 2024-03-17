@@ -79,11 +79,6 @@ away_mode_start:
     entity:
       integration: eight_sleep
       domain: sensor
-away_mode_stop:
-  target:
-    entity:
-      integration: eight_sleep
-      domain: sensor
 prime_pod:
   target:
     entity:
