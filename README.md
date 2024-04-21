@@ -108,6 +108,7 @@ Sensor values are updated every 5 minutes
 - Add device actions, so they can be used instead of service calls.
 - Add the target temperature as a sensor
 - Add local device functionality for jailbroken devices using the steps in https://github.com/bobobo1618/ninesleep
+- Add icons.json file
 
 ## FAQS ##
 - Can I use this integration without an Eight Sleep subscription?

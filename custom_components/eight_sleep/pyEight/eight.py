@@ -6,6 +6,7 @@ Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -47,12 +48,12 @@ class EightSleep:
         self._password = password
         # If client_id isn't set, use the default value
         if not client_id:
-            client_id = "0894c7f33bb94800a03f1f4df13a4f38"
+            client_id = KNOWN_CLIENT_ID
         self._client_id = client_id
-        # client_secret isn't required for current Eight Sleep API auth
-        # but can't be empty value, so setting random string if not set
+        # if client_secret isn't set manually, use the known one
+        # that works for now
         if not client_secret:
-            client_secret = "ASDF"
+            client_secret = KNOWN_CLIENT_SECRET
         self._client_secret = client_secret
 
         self.timezone = timezone
