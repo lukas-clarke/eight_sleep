@@ -281,15 +281,17 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
             self._attr_state_class = NAME_MAP[self._sensor].device_class
             self._attr_device_class = NAME_MAP[self._sensor].state_class
-        elif (
+
+        if self._sensor != "sleep_stage" and self._sensor != "bed_state_type":
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+        if (
             self._sensor == "next_alarm"
             or self._sensor == "presence_start"
             or self._sensor == "presence_end"
         ):
-            self._attr_state_class = SensorDeviceClass.TIMESTAMP
-
-        if self._sensor != "sleep_stage" and self._sensor != "bed_state_type":
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+            self._attr_state_class = None
 
         _LOGGER.debug(
             "User Sensor: %s, Side: %s, User: %s",
