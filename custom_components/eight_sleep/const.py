@@ -34,6 +34,12 @@ NAME_MAP = {
     "time_slept": NameMapEntity(
         "Time Slept", "s", SensorDeviceClass.DURATION, SensorDeviceClass.DURATION
     ),
+    "presence_start": NameMapEntity(
+        "Previous Presence Start",
+    ),
+    "presence_end": NameMapEntity(
+        "Previous Presence End",
+    ),
 }
 
 SERVICE_HEAT_SET = "heat_set"
