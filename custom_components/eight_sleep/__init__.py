@@ -273,6 +273,10 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         """Handle eight sleep alarm stop calls."""
         await self._generic_service_call(self._user_obj.alarm_stop)
 
+    async def async_alarm_dismiss(self) -> None:
+        """Handle eight sleep alarm dismiss calls."""
+        await self._generic_service_call(self._user_obj.alarm_dismiss)
+
     async def async_start_away_mode(
         self,
     ) -> None:

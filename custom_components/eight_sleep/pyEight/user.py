@@ -771,11 +771,19 @@ class EightUser:  # pylint: disable=too-many-public-methods
         resp = await self.device.api_request("PUT", url, data=data)
 
     async def alarm_stop(self):
-        """Snoozes the user alarm for the specified minutes"""
+        """Stops the next user alarm"""
         if not self.next_alarm_id:
             raise Exception(f"No next alarm ID set for {self.user_id}")
         url = APP_API_URL + f"v1/users/{self.user_id}/routines"
         data = {"alarm": {"alarmId": self.next_alarm_id, "stopped": True}}
+        await self.device.api_request("PUT", url, data=data)
+
+    async def alarm_dismiss(self):
+        """Dismisses the next user alarm"""
+        if not self.next_alarm_id:
+            raise Exception(f"No next alarm ID set for {self.user_id}")
+        url = APP_API_URL + f"v1/users/{self.user_id}/routines"
+        data = {"alarm": {"alarmId": self.next_alarm_id, "dismissed": True}}
         await self.device.api_request("PUT", url, data=data)
 
     async def turn_off_side(self):

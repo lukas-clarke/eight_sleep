@@ -54,9 +54,11 @@ There are a few services you can use on the <..>_bed_temperature entities:
 - **Side On**
   - Turns on 8 sleep side in smart mode. Input entity must be a <..>_bed_temperature entity.
 - **Alarm Snooze**
-  - Snoozes an active alarm on a <..>_bed_temperature entity for a specified number of minutes.
+  - Snoozes an _active_ alarm on a <..>_bed_temperature entity for a specified number of minutes.
 - **Alarm Stop**
-  - Stops an active alarm on a <..>_bed_temperature entity.
+  - Stops an _active_ alarm on a <..>_bed_temperature entity.
+- **Alarm Dismiss**
+  - Dismisses an _upcoming_ alarm on a <..>_bed_temperature entity. 
 - **Start Away Mode**
   - Turns on away mode for an 8 sleep side. Input entity must be a <..>_bed_temperature entity.
   - To stop away mode call the *Set Bed Side* service, and select the appropriate side and <..>_bed_temperature entity.

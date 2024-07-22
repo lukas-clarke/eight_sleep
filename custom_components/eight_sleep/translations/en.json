@@ -70,6 +70,10 @@
             "description": "Stops alarm for the 8 sleep side.",
             "name": "Alarm Stop"
         },
+        "alarm_dismiss": {
+            "description": "Dismisses an alarm for the 8 sleep side.",
+            "name": "Alarm Dismiss"
+        },
         "away_mode_start": {
             "description": "Turns on away mode for the 8 sleep side.",
             "name": "Start Away Mode"

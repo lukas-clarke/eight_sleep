@@ -39,6 +39,7 @@ from .const import (
     SERVICE_SIDE_ON,
     SERVICE_ALARM_SNOOZE,
     SERVICE_ALARM_STOP,
+    SERVICE_ALARM_DISMISS,
     SERVICE_AWAY_MODE_START,
     SERVICE_AWAY_MODE_STOP,
     NAME_MAP,
@@ -174,6 +175,11 @@ async def async_setup_entry(
         SERVICE_ALARM_STOP,
         {},
         "async_alarm_stop",
+    )
+    platform.async_register_entity_service(
+        SERVICE_ALARM_DISMISS,
+        {},
+        "async_alarm_dismiss",
     )
     platform.async_register_entity_service(
         SERVICE_AWAY_MODE_START,
