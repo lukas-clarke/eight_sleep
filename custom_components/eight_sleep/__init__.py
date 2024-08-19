@@ -72,7 +72,7 @@ def _get_device_unique_id(eight: EightSleep, user_obj: EightUser | None = None) 
     unique_id = eight.device_id
     assert unique_id
     if user_obj:
-        unique_id = f"{unique_id}.{user_obj.user_id}.{user_obj.side}"
+        unique_id = f"{unique_id}.{user_obj.user_id}"
     return unique_id
 
 
