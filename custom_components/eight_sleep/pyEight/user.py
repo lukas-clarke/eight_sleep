@@ -745,7 +745,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def get_current_device_level(self) -> int:
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
         resp = await self.device.api_request("GET", url)
-        return int(resp["currentDeviceLevel"])
+        return int(resp.get("currentDeviceLevel", 0))
 
     async def prime_pod(self):
         url = APP_API_URL + f"v1/devices/{self.device.device_id}/priming/tasks"
