@@ -270,12 +270,26 @@ class EightSleep:
     async def assign_users(self) -> None:
         """Update device properties."""
         device_id = self._device_ids[0]
-        url = f"{CLIENT_API_URL}/devices/{device_id}?filter=ownerId,leftUserId,rightUserId"
+        url = f"{CLIENT_API_URL}/devices/{device_id}?filter=leftUserId,rightUserId,awaySides"
 
         data = await self.api_request("get", url)
-        for side in ("left", "right"):
-            user_id = data["result"].get(f"{side}UserId")
-            if user_id is not None and user_id not in self.users:
+
+        # The API includes an awaySides key if at least one of the users is away
+        # We can get the ids for the away users from there
+        ids = set([
+            data["result"].get("leftUserId"),
+            data["result"].get("rightUserId"),
+            *data["result"].get("awaySides", {}).values()
+        ])
+
+        # Get each user's side from the API
+        # Create users for each unique id, including 'away' users
+        for user_id in filter(None, ids):
+            url = f"{CLIENT_API_URL}/users/{user_id}"
+            data = await self.api_request("get", url)
+            side = data.get("user", {}).get("currentDevice", {}).get("side")
+
+            if user_id not in self.users:
                 user = self.users[user_id] = EightUser(self, user_id, side)
                 await user.update_user_profile()
 
