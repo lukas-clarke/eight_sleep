@@ -63,6 +63,11 @@
       "description": "Turns on away mode for the 8 sleep side."
 
     },
+    "away_mode_stop": {
+      "name": "Stop Away Mode",
+      "description": "Turns off away mode for the 8 sleep side."
+
+    },
     "prime_pod": {
       "name": "Prime Pod",
       "description": "Will start the pod priming."

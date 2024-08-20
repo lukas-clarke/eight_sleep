@@ -186,12 +186,12 @@ async def async_setup_entry(
         {},
         "async_start_away_mode",
     )
-    ## The API currently doesn't have a stop for the away mode
-    # platform.async_register_entity_service(
-    #     SERVICE_AWAY_MODE_STOP,
-    #     {},
-    #     "async_stop_away_mode",
-    # )
+    # The API currently doesn't have a stop for the away mode
+    platform.async_register_entity_service(
+        SERVICE_AWAY_MODE_STOP,
+        {},
+        "async_stop_away_mode",
+    )
     platform.async_register_entity_service(
         "prime_pod",
         {},
