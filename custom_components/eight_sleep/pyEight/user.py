@@ -5,6 +5,7 @@ Provides user data for Eight Sleep
 Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -38,6 +39,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
+        self.current_user_side = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -512,6 +514,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
             None,
         )
 
+    async def get_user_side(self) -> str:
+        """Returns the side that the current user is set to"""
+        url = CLIENT_API_URL + f"/users/{self.user_id}/current-device"
+        data = await self.device.api_request("GET", url, return_json=True)
+        return data["side"]
+
     def heating_stats(self) -> None:
         """Calculate some heating data stats."""
         local_5 = []
@@ -670,6 +678,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.update_routines_data()
 
         self.bed_state_type = await self.get_bed_state_type()
+        self.current_user_side = await self.get_user_side()
 
         current_side_temp_raw = await self.get_current_device_level()
         self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(

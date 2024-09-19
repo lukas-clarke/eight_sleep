@@ -104,6 +104,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Routine Score           | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
 | Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
+| Side                    | Side  | String      | Yes      | The current side that this user side is set to                                                                                                                                                  |
 Sensor values are updated every 5 minutes
 
 ## TODO ##
