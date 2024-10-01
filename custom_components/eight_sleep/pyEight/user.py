@@ -39,7 +39,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
-        self.current_user_side = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -148,15 +147,19 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def target_heating_level(self) -> int | None:
         """Return target heating/cooling level."""
-        return self.device.device_data.get(f"{self.side}TargetHeatingLevel")
+        return self.device.device_data.get(
+            f"{self.corrected_side_for_key}TargetHeatingLevel"
+        )
 
     @property
     def heating_level(self) -> int | None:
         """Return heating/cooling level."""
-        level = self.device.device_data.get(f"{self.side}HeatingLevel")
+        level = self.device.device_data.get(
+            f"{self.corrected_side_for_key}HeatingLevel"
+        )
         if level is None:
             for data in self.device.device_data_history:
-                level = data.get(f"{self.side}HeatingLevel")
+                level = data.get(f"{self.corrected_side_for_key}HeatingLevel")
                 if level is not None:
                     break
 
@@ -165,16 +168,25 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self.observed_low = level
         return level
 
+    @property
+    def corrected_side_for_key(self) -> str:
+        if self.side.lower() == "solo":
+            return "left"
+        else:
+            return self.side
+
     def past_heating_level(self, num) -> int:
         """Return a heating level from the past."""
         if num > 9 or len(self.device.device_data_history) < num + 1:
             return 0
 
-        return self.device.device_data_history[num].get(f"{self.side}HeatingLevel", 0)
+        return self.device.device_data_history[num].get(
+            f"{self.corrected_side_for_key}HeatingLevel", 0
+        )
 
     def _now_heating_or_cooling(self, target_heating_level_check: bool) -> bool | None:
         """Return true/false if heating or cooling is currently happening."""
-        key = f"{self.side}NowHeating"
+        key = f"{self.corrected_side_for_key}NowHeating"
         if (
             self.target_heating_level is None
             or (target := self.device.device_data.get(key)) is None
@@ -197,7 +209,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def heating_remaining(self) -> int | None:
         """Return seconds of heat/cool time remaining."""
-        return self.device.device_data.get(f"{self.side}HeatingDuration")
+        return self.device.device_data.get(
+            f"{self.corrected_side_for_key}HeatingDuration"
+        )
 
     @property
     def last_seen(self) -> str | None:
@@ -206,7 +220,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
         These values seem to be rarely updated correctly in the API.
         Don't expect accurate results from this property.
         """
-        if not (last_seen := self.device.device_data.get(f"{self.side}PresenceEnd")):
+        if not (
+            last_seen := self.device.device_data.get(
+                f"{self.corrected_side_for_key}PresenceEnd"
+            )
+        ):
             return None
         return datetime.fromtimestamp(int(last_seen)).strftime(DATE_TIME_ISO_FORMAT)
 
@@ -685,7 +703,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.update_routines_data()
 
         self.bed_state_type = await self.get_bed_state_type()
-        self.current_user_side = await self.get_user_side()
 
         current_side_temp_raw = await self.get_current_device_level()
         self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
