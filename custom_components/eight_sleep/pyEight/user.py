@@ -39,6 +39,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
+        self.current_user_side = None
 
         # Variables to do dynamic presence
         self.presence: bool = False
@@ -684,6 +685,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.update_routines_data()
 
         self.bed_state_type = await self.get_bed_state_type()
+        self.current_user_side = await self.get_user_side()
 
         current_side_temp_raw = await self.get_current_device_level()
         self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
