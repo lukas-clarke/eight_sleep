@@ -5,6 +5,7 @@ Provides user data for Eight Sleep
 Copyright (c) 2022-2023 <https://github.com/lukas-clarke/pyEight>
 Licensed under the MIT license.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -152,6 +153,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def heating_level(self) -> int | None:
         """Return heating/cooling level."""
         level = self.device.device_data.get(f"{self.side}HeatingLevel")
+        if level is None:
+            for data in self.device.device_data_history:
+                level = data.get(f"{self.side}HeatingLevel")
+                if level is not None:
+                    break
+
         # Update observed low
         if level is not None and level < self.observed_low:
             self.observed_low = level
@@ -512,6 +519,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
             None,
         )
 
+    async def get_user_side(self) -> str:
+        """Returns the side that the current user is set to"""
+        url = CLIENT_API_URL + f"/users/{self.user_id}/current-device"
+        data = await self.device.api_request("GET", url, return_json=True)
+        return data["side"]
+
     def heating_stats(self) -> None:
         """Calculate some heating data stats."""
         local_5 = []
@@ -658,6 +671,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def update_user(self) -> None:
         """Update all user data."""
+        self.side = await self.get_user_side()
         await self.update_intervals_data()
 
         now = datetime.today()
