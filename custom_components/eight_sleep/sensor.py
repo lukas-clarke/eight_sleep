@@ -289,11 +289,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_state_class = NAME_MAP[self._sensor].device_class
             self._attr_device_class = NAME_MAP[self._sensor].state_class
 
-        if (
-            self._sensor != "sleep_stage"
-            and self._sensor != "bed_state_type"
-            and self._sensor != "side"
-        ):
+        if self._sensor != "sleep_stage" and self._sensor != "bed_state_type":
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
         if (
@@ -325,8 +321,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.bed_state_type
         if "last" in self._sensor:
             return self._user_obj.last_sleep_score
-        if "side" == self._sensor:
-            return self._user_obj.current_user_side
 
         if self._sensor == "bed_temperature":
             return self._user_obj.current_values["bed_temp"]
