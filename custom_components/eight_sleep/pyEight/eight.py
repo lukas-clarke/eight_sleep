@@ -49,8 +49,8 @@ class EightSleep:
         email: str,
         password: str,
         timezone: str,
-        client_id: str = None,
-        client_secret: str = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
         client_session: ClientSession | None = None,
         httpx_client: httpx.AsyncClient | None = None,
         check_auth: bool = False,
@@ -73,7 +73,7 @@ class EightSleep:
         self.users: dict[str, EightUser] = {}
 
         self._user_id: str | None = None
-        self._token: str | None = None
+        self._token: Token | None = None
         self._token_expiration: datetime | None = None
         self._device_ids: list[str] = []
         self._is_pod: bool = False

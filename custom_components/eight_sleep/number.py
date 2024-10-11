@@ -1,3 +1,4 @@
+from typing import Callable
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -40,16 +41,16 @@ async def async_setup_entry(
     if eight.has_base:
         for user in eight.users.values():
             def set_leg_angle(value):
-                entry.async_create_task(user.set_base_angle(leg_angle=value, torso_angle=user.torso_angle))
+                entry.async_create_task(hass, user.set_base_angle(leg_angle=value, torso_angle=user.torso_angle))
 
             def set_torso_angle(value):
-                entry.async_create_task(user.set_base_angle(leg_angle=user.leg_angle, torso_angle=value))
+                entry.async_create_task(hass, user.set_base_angle(leg_angle=user.leg_angle, torso_angle=value))
 
             # Note: The API refers to these as "leg" and "torso" angles, but the app shows them as "feet" and "head"
             # angles. This is the point where we change the terminology to match the app.
             entities.extend([
                 EightNumberEntity(
-                    config_entry_data,
+                    entry,
                     coordinator,
                     eight,
                     user,
@@ -57,7 +58,7 @@ async def async_setup_entry(
                     lambda: user.leg_angle,
                     set_leg_angle),
                 EightNumberEntity(
-                    config_entry_data,
+                    entry,
                     coordinator,
                     eight,
                     user,
@@ -72,13 +73,13 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity):
 
     def __init__(
         self,
-        entry: EightSleepConfigEntryData,
+        entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
         user: EightUser | None,
         entity_description: NumberEntityDescription,
-        value_getter: callable,
-        set_value_callback: callable
+        value_getter: Callable[[], float | None],
+        set_value_callback: Callable[[float], None]
     ):
         super().__init__(entry, coordinator, eight, user, entity_description.key)
         self.entity_description = entity_description

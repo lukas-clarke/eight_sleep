@@ -139,12 +139,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self._user_profile
 
     @property
-    def base_data(self) -> dict[str, Any] | None:
+    def base_data(self) -> dict[str, Any]:
         """Return the base data."""
         return self._base_data
 
     @property
-    def base_data_for_side(self) -> dict[str, Any] | None:
+    def base_data_for_side(self) -> dict[str, Any]:
         """Return the base data for the user's side."""
         return self.base_data.get(self.corrected_side_for_key, {})
 
@@ -154,12 +154,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self.base_data_for_side.get("preset", {}).get("name")
 
     @property
-    def leg_angle(self) -> int | None:
+    def leg_angle(self) -> int:
         """Return the base leg angle."""
         return self.base_data_for_side.get("leg", {}).get("currentAngle", 0)
 
     @property
-    def torso_angle(self) -> int | None:
+    def torso_angle(self) -> int:
         """Return the base torso angle."""
         return self.base_data_for_side.get("torso", {}).get("currentAngle", 0)
 
@@ -473,7 +473,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def last_latency_out_score(self) -> int | None:
         """Return latency out score for previous session."""
-        return self._get_froutine_score(1, "latencyOutSeconds")
+        return self._get_routine_score(1, "latencyOutSeconds")
 
     @property
     def last_wakeup_consistency_score(self) -> int | None:
@@ -912,7 +912,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
         self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
 
-    async def update_base_data(self) -> dict:
+    async def update_base_data(self):
         """Update the data about the bed base."""
         if self.device.has_base:
             url = f"{APP_API_URL}v1/users/{self.user_id}/base"
@@ -929,7 +929,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "torsoAngle": torso_angle,
                 "enableOfflineMode": False
             }
-            await self.device.api_request("POST", url, json=payload)
+            await self.device.api_request("POST", url, data=payload)
 
             # Update the angles locally
             self.base_data_for_side["leg"]["currentAngle"] = leg_angle

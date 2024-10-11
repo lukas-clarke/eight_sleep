@@ -1,5 +1,6 @@
 """Support for Eight Sleep binary sensors."""
 from __future__ import annotations
+from typing import Callable
 
 from custom_components.eight_sleep.pyEight.user import EightUser
 
@@ -72,7 +73,7 @@ class EightBinaryEntity(EightSleepBaseEntity, BinarySensorEntity):
         eight: EightSleep,
         user: EightUser | None,
         entity_description: BinarySensorEntityDescription,
-        value_getter: callable
+        value_getter: Callable[[], bool | None]
     ) -> None:
         super().__init__(entry, coordinator, eight, user, entity_description.key)
         self.entity_description = entity_description

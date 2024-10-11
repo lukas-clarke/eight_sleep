@@ -11,9 +11,9 @@ class NameMapEntity:
     def __init__(
         self,
         name: str,
-        measurement: str = None,
-        device_class: SensorDeviceClass = None,
-        state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+        measurement: str | None = None,
+        device_class: SensorDeviceClass | None = None,
+        state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT
     ) -> None:
         self.name = name
         self.measurement = measurement
