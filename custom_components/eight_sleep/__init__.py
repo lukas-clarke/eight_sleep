@@ -162,11 +162,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         user_device_data = device_data.copy()
         base_hardware_info = user.base_data.get("hardwareInfo", {})
         if 'sku' in base_hardware_info:
-            user_device_data[ATTR_MODEL] += f", Base ({base_hardware_info['sku']})"
+            user_device_data[ATTR_MODEL] += f", Base {base_hardware_info['sku']}"
         if 'hardwareVersion' in base_hardware_info:
-            user_device_data[ATTR_HW_VERSION] += f", Base ({base_hardware_info['hardwareVersion']})"
+            user_device_data[ATTR_HW_VERSION] += f", Base {base_hardware_info['hardwareVersion']}"
         if 'softwareVersion' in base_hardware_info:
-            user_device_data[ATTR_SW_VERSION] += f", Base ({base_hardware_info['softwareVersion']})"
+            user_device_data[ATTR_SW_VERSION] += f", Base {base_hardware_info['softwareVersion']}"
 
         dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,

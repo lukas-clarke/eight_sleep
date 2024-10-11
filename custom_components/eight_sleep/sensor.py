@@ -288,23 +288,24 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         elif self._sensor in (NAME_MAP):
             self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
-            self._attr_state_class = NAME_MAP[self._sensor].device_class
-            self._attr_device_class = NAME_MAP[self._sensor].state_class
-
-        if (
-            self._sensor != "sleep_stage"
-            and self._sensor != "bed_state_type"
-            and self._sensor != "side"
-        ):
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-
-        if (
+            self._attr_device_class = NAME_MAP[self._sensor].device_class
+            self._attr_state_class = NAME_MAP[self._sensor].state_class
+        elif (
             self._sensor == "next_alarm"
             or self._sensor == "presence_start"
             or self._sensor == "presence_end"
         ):
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
-            self._attr_state_class = None
+        elif (
+            self._sensor == "sleep_stage"
+            or self._sensor == "bed_state_type"
+            or self._sensor == "side"
+            or self._sensor == "base_preset"
+        ):
+            # These have string values, leave the class None
+            pass
+        else:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
         _LOGGER.debug(
             "User Sensor: %s, Side: %s, User: %s",

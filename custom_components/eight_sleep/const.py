@@ -1,4 +1,4 @@
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 
 """Eight Sleep constants."""
 DOMAIN = "eight_sleep"
@@ -9,12 +9,16 @@ USER_ENTITY = "user"
 
 class NameMapEntity:
     def __init__(
-        self, name, measurement=None, state_class=None, device_class=None
+        self,
+        name: str,
+        measurement: str = None,
+        device_class: SensorDeviceClass = None,
+        state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     ) -> None:
         self.name = name
         self.measurement = measurement
-        self.state_class = state_class
         self.device_class = device_class
+        self.state_class = state_class
 
     def __str__(self) -> str:
         return self.name
@@ -28,7 +32,7 @@ NAME_MAP = {
     "current_hrv": NameMapEntity("HRV", "ms"),
     "current_breath_rate": NameMapEntity("Breath Rate", "/min"),
     "time_slept": NameMapEntity(
-        "Time Slept", "s", SensorDeviceClass.DURATION, SensorDeviceClass.DURATION
+        "Time Slept", "s", SensorDeviceClass.DURATION
     ),
     "presence_start": NameMapEntity(
         "Previous Presence Start",
