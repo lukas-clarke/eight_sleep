@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
 import pytz
 
-from .constants import *
-from .constants import *
+from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
 
 if TYPE_CHECKING:
     from .eight import EightSleep

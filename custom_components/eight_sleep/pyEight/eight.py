@@ -20,8 +20,19 @@ import time
 import httpx
 from aiohttp.client import ClientError, ClientSession, ClientTimeout
 
-from .constants import *
-from .exceptions import NotAuthenticatedError, RequestError
+from .constants import (
+    DEFAULT_TIMEOUT,
+    KNOWN_CLIENT_ID,
+    KNOWN_CLIENT_SECRET,
+    AUTH_URL,
+    DEFAULT_AUTH_HEADERS,
+    CLIENT_API_URL,
+    DEFAULT_API_HEADERS,
+    TOKEN_TIME_BUFFER_SECONDS,
+    RAW_TO_CELSIUS_MAP,
+    RAW_TO_FAHRENHEIT_MAP,
+)
+from .exceptions import RequestError
 from .user import EightUser
 from .structs import Token
 
