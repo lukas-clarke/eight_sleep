@@ -921,6 +921,10 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
         """Set the angles of the bed base."""
         if self.device.has_base:
+            # Update the angles locally
+            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
+            self.base_data_for_side["torso"]["currentAngle"] = torso_angle
+
             url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
             payload = {
                 "deviceId": self.device.device_id,
@@ -930,7 +934,3 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "enableOfflineMode": False
             }
             await self.device.api_request("POST", url, data=payload)
-
-            # Update the angles locally
-            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
-            self.base_data_for_side["torso"]["currentAngle"] = torso_angle
