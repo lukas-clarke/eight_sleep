@@ -17,6 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
@@ -69,6 +70,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             client_id,
             client_secret,
             client_session=async_get_clientsession(self.hass),
+            httpx_client=get_async_client(self.hass),
         )
 
         try:

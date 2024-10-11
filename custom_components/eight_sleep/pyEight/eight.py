@@ -52,6 +52,7 @@ class EightSleep:
         client_id: str = None,
         client_secret: str = None,
         client_session: ClientSession | None = None,
+        httpx_client: httpx.AsyncClient | None = None,
         check_auth: bool = False,
     ) -> None:
         """Initialize eight sleep class."""
@@ -82,6 +83,7 @@ class EightSleep:
         self._device_json_list: list[dict] = []
 
         self._api_session = client_session
+        self._httpx_client = httpx_client
         self._internal_session: bool = False
 
         if check_auth:
@@ -199,24 +201,27 @@ class EightSleep:
             "username": self._email,
             "password": self._password,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                AUTH_URL,
-                headers=DEFAULT_AUTH_HEADERS,
-                json=data,
-                timeout=DEFAULT_TIMEOUT,
+
+        if not self._httpx_client:
+            self._httpx_client = httpx.AsyncClient()
+
+        response = await self._httpx_client.post(
+            AUTH_URL,
+            headers=DEFAULT_AUTH_HEADERS,
+            json=data,
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code == 200:
+            access_token_str = response.json()["access_token"]
+            expiration_seconds_int = (
+                float(response.json()["expires_in"]) + time.time()
             )
-            if response.status_code == 200:
-                access_token_str = response.json()["access_token"]
-                expiration_seconds_int = (
-                    float(response.json()["expires_in"]) + time.time()
-                )
-                main_id = response.json()["userId"]
-                return Token(access_token_str, expiration_seconds_int, main_id)
-            else:
-                raise RequestError(
-                    f"Auth request failed with status code: {response.status_code}"
-                )
+            main_id = response.json()["userId"]
+            return Token(access_token_str, expiration_seconds_int, main_id)
+        else:
+            raise RequestError(
+                f"Auth request failed with status code: {response.status_code}"
+            )
 
     @property
     async def token(self) -> Token:

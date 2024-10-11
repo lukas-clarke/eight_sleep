@@ -26,6 +26,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.httpx_client import get_async_client
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.device_registry import DeviceInfo, async_get
 from homeassistant.helpers.typing import UNDEFINED, ConfigType
@@ -110,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client_id,
         client_secret,
         client_session=async_get_clientsession(hass),
+        httpx_client=get_async_client(hass)
     )
     # Authenticate, build sensors
     try:
