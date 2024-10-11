@@ -98,11 +98,6 @@ class EightSleep:
             asyncio.run(self.stop())
 
     @property
-    def token(self) -> str | None:
-        """Return session token."""
-        return self._token
-
-    @property
     def user_id(self) -> str | None:
         """Return user ID of the logged in user."""
         return self._user_id
