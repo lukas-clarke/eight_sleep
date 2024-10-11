@@ -38,7 +38,7 @@ from .const import DOMAIN, NAME_MAP
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER]
 
 HEAT_SCAN_INTERVAL = timedelta(seconds=60)
 USER_SCAN_INTERVAL = timedelta(seconds=300)
@@ -159,12 +159,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     for user in eight.users.values():
         assert user.user_profile
+        user_device_data = device_data.copy()
+        base_hardware_info = user.base_data.get("hardwareInfo", {})
+        if 'sku' in base_hardware_info:
+            user_device_data[ATTR_MODEL] += f", Base ({base_hardware_info['sku']})"
+        if 'hardwareVersion' in base_hardware_info:
+            user_device_data[ATTR_HW_VERSION] += f", Base ({base_hardware_info['hardwareVersion']})"
+        if 'softwareVersion' in base_hardware_info:
+            user_device_data[ATTR_SW_VERSION] += f", Base ({base_hardware_info['softwareVersion']})"
+
         dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
             name=f"{user.user_profile['firstName']}'s Eight Sleep Side",
             via_device=(DOMAIN, _get_device_unique_id(eight)),
-            **device_data,
+            **user_device_data,
         )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(

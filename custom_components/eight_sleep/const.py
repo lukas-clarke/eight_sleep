@@ -1,8 +1,4 @@
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
+from homeassistant.components.sensor import SensorDeviceClass
 
 """Eight Sleep constants."""
 DOMAIN = "eight_sleep"

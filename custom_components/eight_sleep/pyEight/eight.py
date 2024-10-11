@@ -76,6 +76,7 @@ class EightSleep:
         self._token_expiration: datetime | None = None
         self._device_ids: list[str] = []
         self._is_pod: bool = False
+        self._has_base: bool = False
 
         # Setup 10 element list
         self._device_json_list: list[dict] = []
@@ -135,8 +136,13 @@ class EightSleep:
 
     @property
     def is_pod(self) -> bool:
-        """Return if device is a POD."""
+        """Return if device is a Pod."""
         return self._is_pod
+
+    @property
+    def has_base(self) -> bool:
+        """Return if device has a base."""
+        return self._has_base
 
     def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
         """degree_unit can be 'c' or 'f'
@@ -271,7 +277,10 @@ class EightSleep:
         if "cooling" in dlist["user"]["features"]:
             self._is_pod = True
 
-        _LOGGER.debug("Devices: %s, POD: %s", self._device_ids, self._is_pod)
+        if "elevation" in dlist["user"]["features"]:
+            self._has_base = True
+
+        _LOGGER.debug(f"Devices: {self._device_ids}, Pod: {self._is_pod}, Base: {self._has_base}")
 
     async def assign_users(self) -> None:
         """Update device properties."""

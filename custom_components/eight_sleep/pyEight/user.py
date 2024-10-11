@@ -13,7 +13,6 @@ import logging
 import statistics
 from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
-import pytz
 
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
 
@@ -32,6 +31,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.user_id = user_id
         self.side = side
         self._user_profile: dict[str, Any] = {}
+        self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.intervals: list[dict[str, Any]] = []
         self.next_alarm = None
@@ -137,6 +137,36 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def user_profile(self) -> dict[str, Any] | None:
         """Return userdata."""
         return self._user_profile
+
+    @property
+    def base_data(self) -> dict[str, Any] | None:
+        """Return the base data."""
+        return self._base_data
+
+    @property
+    def base_data_for_side(self) -> dict[str, Any] | None:
+        """Return the base data for the user's side."""
+        return self.base_data.get(self.corrected_side_for_key, {})
+
+    @property
+    def base_preset(self) -> str | None:
+        """Return the base preset. Currently these are sleeping, relaxing and reading."""
+        return self.base_data_for_side.get("preset", {}).get("name")
+
+    @property
+    def leg_angle(self) -> int | None:
+        """Return the base leg angle."""
+        return self.base_data_for_side.get("leg", {}).get("currentAngle", 0)
+
+    @property
+    def torso_angle(self) -> int | None:
+        """Return the base torso angle."""
+        return self.base_data_for_side.get("torso", {}).get("currentAngle", 0)
+
+    @property
+    def in_snore_mitigation(self) -> bool:
+        """Return the snore mitigation state."""
+        return self.base_data_for_side.get("inSnoreMitigation", False)
 
     @property
     def bed_presence(self) -> bool:
@@ -686,6 +716,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Update all user data."""
         self.side = await self.get_user_side()
         await self.update_intervals_data()
+        await self.update_base_data()
 
         now = datetime.today()
         start = now - timedelta(days=2)
@@ -881,3 +912,25 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
         self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
 
+    async def update_base_data(self) -> dict:
+        """Update the data about the bed base."""
+        if self.device.has_base:
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base"
+            self._base_data = await self.device.api_request("GET", url)
+
+    async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
+        """Set the angles of the bed base."""
+        if self.device.has_base:
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
+            payload = {
+                "deviceId": self.device.device_id,
+                "deviceOnline": True,
+                "legAngle": leg_angle,
+                "torsoAngle": torso_angle,
+                "enableOfflineMode": False
+            }
+            await self.device.api_request("POST", url, json=payload)
+
+            # Update the angles locally
+            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
+            self.base_data_for_side["torso"]["currentAngle"] = torso_angle

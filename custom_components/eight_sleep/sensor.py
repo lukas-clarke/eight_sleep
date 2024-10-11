@@ -17,7 +17,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfTemperature,
-    UnitOfTime,
     CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
@@ -138,6 +137,9 @@ async def async_setup_entry(
             EightHeatSensor(entry, heat_coordinator, eight, obj.user_id, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
+
+        if eight.has_base:
+            all_sensors.append(EightUserSensor(entry, user_coordinator, eight, obj.user_id, "base_preset"))
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -325,12 +327,12 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.bed_state_type
         if "last" in self._sensor:
             return self._user_obj.last_sleep_score
-        if "side" == self._sensor:
+        if self._sensor == "side":
             return self._user_obj.side
-
+        if self._sensor == "base_preset":
+            return self._user_obj.base_preset
         if self._sensor == "bed_temperature":
             return self._user_obj.current_values["bed_temp"]
-
         if self._sensor == "sleep_stage":
             return self._user_obj.current_values["stage"]
 
