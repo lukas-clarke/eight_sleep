@@ -250,10 +250,17 @@ class EightSleep:
             await user.update_user()
 
     async def update_base_data(self) -> None:
-        """Update data for the bed base."""
+        """Update data for the bed base.
+        While it's possible to retrieve the data for each user, the contents are identical."""
+        user = self.base_user
+        if user:
+            await user.update_base_data()
+
+    @property
+    def base_user(self) -> EightUser | None:
+        """Return the user object for the base."""
         if self.has_base:
-            for user in self.users.values():
-                await user.update_base_data()
+            return next(iter(self.users.values()))
 
     async def start(self) -> bool:
         """Start api initialization."""

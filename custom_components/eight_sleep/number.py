@@ -38,33 +38,33 @@ async def async_setup_entry(
 
     entities: list[NumberEntity] = []
 
-    if eight.has_base:
-        for user in eight.users.values():
-            def set_leg_angle(value):
-                entry.async_create_task(hass, user.set_base_angle(leg_angle=value, torso_angle=user.torso_angle))
+    user = eight.base_user
+    if user:
+        def set_leg_angle(value):
+            entry.async_create_task(hass, user.set_base_angle(leg_angle=value, torso_angle=user.torso_angle))
 
-            def set_torso_angle(value):
-                entry.async_create_task(hass, user.set_base_angle(leg_angle=user.leg_angle, torso_angle=value))
+        def set_torso_angle(value):
+            entry.async_create_task(hass, user.set_base_angle(leg_angle=user.leg_angle, torso_angle=value))
 
-            # Note: The API refers to these as "leg" and "torso" angles, but the app shows them as "feet" and "head"
-            # angles. This is the point where we change the terminology to match the app.
-            entities.extend([
-                EightNumberEntity(
-                    entry,
-                    coordinator,
-                    eight,
-                    user,
-                    FEET_DESCRIPTION,
-                    lambda: user.leg_angle,
-                    set_leg_angle),
-                EightNumberEntity(
-                    entry,
-                    coordinator,
-                    eight,
-                    user,
-                    HEAD_DESCRIPTION,
-                    lambda: user.torso_angle,
-                    set_torso_angle)])
+        # Note: The API refers to these as "leg" and "torso" angles, but the app shows them as "feet" and "head" angles.
+        # This is the point where we change the terminology to match the app.
+        entities.extend([
+            EightNumberEntity(
+                entry,
+                coordinator,
+                eight,
+                user,
+                FEET_DESCRIPTION,
+                lambda: user.leg_angle,
+                set_leg_angle),
+            EightNumberEntity(
+                entry,
+                coordinator,
+                eight,
+                user,
+                HEAD_DESCRIPTION,
+                lambda: user.torso_angle,
+                set_torso_angle)])
 
     async_add_entities(entities)
 
@@ -81,7 +81,7 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity):
         value_getter: Callable[[], float | None],
         set_value_callback: Callable[[float], None]
     ):
-        super().__init__(entry, coordinator, eight, user, entity_description.key)
+        super().__init__(entry, coordinator, eight, user, entity_description.key, base_entity=True)
         self.entity_description = entity_description
         self._value_getter = value_getter
         self._set_value_callback = set_value_callback

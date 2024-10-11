@@ -145,12 +145,14 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     @property
     def base_data_for_side(self) -> dict[str, Any]:
-        """Return the base data for the user's side."""
+        """Return the base data for the user's side.
+        Currently the data is identical for both sides."""
         return self.base_data.get(self.corrected_side_for_key, {})
 
     @property
     def base_preset(self) -> str | None:
-        """Return the base preset. Currently these are sleeping, relaxing and reading."""
+        """Return the base preset.
+        Currently these are sleeping, relaxing and reading."""
         return self.base_data_for_side.get("preset", {}).get("name")
 
     @property

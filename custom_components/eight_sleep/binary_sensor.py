@@ -51,14 +51,15 @@ async def async_setup_entry(
             BED_PRESENCE_DESCRIPTION,
             lambda: user.bed_presence))
 
-        if eight.has_base:
-            entities.append(EightBinaryEntity(
-                entry,
-                config_entry_data.base_coordinator,
-                eight,
-                user,
-                SNORE_MITIGATION_DESCRIPTION,
-                lambda: user.in_snore_mitigation))
+    if eight.base_user:
+        entities.append(EightBinaryEntity(
+            entry,
+            config_entry_data.base_coordinator,
+            eight,
+            None,
+            SNORE_MITIGATION_DESCRIPTION,
+            lambda: eight.base_user.in_snore_mitigation,
+            base_entity=True))
 
     async_add_entities(entities)
 
@@ -73,9 +74,10 @@ class EightBinaryEntity(EightSleepBaseEntity, BinarySensorEntity):
         eight: EightSleep,
         user: EightUser | None,
         entity_description: BinarySensorEntityDescription,
-        value_getter: Callable[[], bool | None]
+        value_getter: Callable[[], bool | None],
+        base_entity: bool = False
     ) -> None:
-        super().__init__(entry, coordinator, eight, user, entity_description.key)
+        super().__init__(entry, coordinator, eight, user, entity_description.key, base_entity)
         self.entity_description = entity_description
         self._value_getter = value_getter
 

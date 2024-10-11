@@ -71,12 +71,21 @@ class EightSleepConfigEntryData:
     base_coordinator: DataUpdateCoordinator
 
 
-def _get_device_unique_id(eight: EightSleep, user_obj: EightUser | None = None) -> str:
+def _get_device_unique_id(
+    eight: EightSleep,
+    user_obj: EightUser | None = None,
+    base_entity: bool = False
+) -> str:
     """Get the device's unique ID."""
     unique_id = eight.device_id
     assert unique_id
+
+    if base_entity:
+        return f"{unique_id}.base"
+
     if user_obj:
-        unique_id = f"{unique_id}.{user_obj.user_id}"
+        return f"{unique_id}.{user_obj.user_id}"
+
     return unique_id
 
 
@@ -172,21 +181,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     for user in eight.users.values():
         assert user.user_profile
-        user_device_data = device_data.copy()
-        base_hardware_info = user.base_data.get("hardwareInfo", {})
-        if 'sku' in base_hardware_info:
-            user_device_data[ATTR_MODEL] += f", Base {base_hardware_info['sku']}"
-        if 'hardwareVersion' in base_hardware_info:
-            user_device_data[ATTR_HW_VERSION] += f", Base {base_hardware_info['hardwareVersion']}"
-        if 'softwareVersion' in base_hardware_info:
-            user_device_data[ATTR_SW_VERSION] += f", Base {base_hardware_info['softwareVersion']}"
 
         dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
             name=f"{user.user_profile['firstName']}'s Eight Sleep Side",
             via_device=(DOMAIN, _get_device_unique_id(eight)),
-            **user_device_data,
+            **device_data,
+        )
+
+    if eight.base_user:
+        base_hardware_info = eight.base_user.base_data.get("hardwareInfo", {})
+        base_device_data = {
+            ATTR_MANUFACTURER: "Eight Sleep",
+            ATTR_MODEL: base_hardware_info['sku'],
+            ATTR_HW_VERSION: base_hardware_info['hardwareVersion'],
+            ATTR_SW_VERSION: base_hardware_info['softwareVersion'],
+        }
+
+        dev_reg.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, _get_device_unique_id(eight, base_entity=True))},
+            name=f"{entry.data[CONF_USERNAME]}'s Base",
+            via_device=(DOMAIN, _get_device_unique_id(eight)),
+            **base_device_data,
         )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(
@@ -221,6 +239,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         eight: EightSleep,
         user: EightUser | None,
         sensor: str,
+        base_entity: bool = False
     ) -> None:
         """Initialize the data object."""
         super().__init__(coordinator)
@@ -231,16 +250,18 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
 
         mapped_name = str(NAME_MAP.get(sensor, sensor.replace("_", " ").title()))
 
-        if self._user_obj is not None:
+        if base_entity:
+            self._attr_name = f"Eight Sleep Base {mapped_name}"
+        elif self._user_obj is not None:
             assert self._user_obj.user_profile
             name = f"{self._user_obj.user_profile['firstName']}'s {mapped_name}"
             self._attr_name = name
         else:
             self._attr_name = f"Eight Sleep {mapped_name}"
-        unique_id = f"{_get_device_unique_id(eight, self._user_obj)}.{sensor}"
-        self._attr_unique_id = unique_id
-        identifiers = {(DOMAIN, _get_device_unique_id(eight, self._user_obj))}
-        self._attr_device_info = DeviceInfo(identifiers=identifiers)
+
+        device_id = _get_device_unique_id(eight, self._user_obj, base_entity)
+        self._attr_unique_id = f"{device_id}.{sensor}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, device_id)})
 
     async def _generic_service_call(self, service_method):
         if self._user_obj is None:

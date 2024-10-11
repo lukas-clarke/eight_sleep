@@ -141,8 +141,15 @@ async def async_setup_entry(
             for sensor in EIGHT_HEAT_SENSORS
         )
 
-        if eight.has_base:
-            all_sensors.append(EightUserSensor(entry, base_coordinator, eight, user, "base_preset"))
+    if eight.base_user:
+        all_sensors.append(EightUserSensor(
+            entry,
+            base_coordinator,
+            eight,
+            eight.base_user,
+            "base_preset",
+            base_entity=True
+        ))
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -279,9 +286,10 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         eight: EightSleep,
         user: EightUser | None,
         sensor: str,
+        base_entity: bool = False
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user, sensor)
+        super().__init__(entry, coordinator, eight, user, sensor, base_entity)
         assert self._user_obj
 
         if self._sensor == "bed_temperature":

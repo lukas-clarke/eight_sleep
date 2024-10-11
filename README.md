@@ -108,7 +108,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 
 Sensor values are updated every 5 minutes
 
-When the Base is installed then the following sensors are available for each bed side:
+When the Base is installed, the following entities are available:
 
 | Entity | Type | Notes |
 |---|---|---|
@@ -118,8 +118,6 @@ When the Base is installed then the following sensors are available for each bed
 | Base Preset | String | The app currently offers three presets for the base: sleeping, relaxing, and reading. |
 
 These values are updated every minute.
-Note that the Eight Sleep API provides them independently for each side, but in reality the two sides move at the same time.
-Perhaps this is something they will change in the future?
 
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
