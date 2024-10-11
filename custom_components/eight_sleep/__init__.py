@@ -206,18 +206,15 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str | None,
+        user: EightUser | None,
         sensor: str,
     ) -> None:
         """Initialize the data object."""
         super().__init__(coordinator)
         self._config_entry = entry
         self._eight = eight
-        self._user_id = user_id
         self._sensor = sensor
-        self._user_obj: EightUser | None = None
-        if user_id:
-            self._user_obj = self._eight.users[user_id]
+        self._user_obj = user
 
         mapped_name = str(NAME_MAP.get(sensor, sensor.replace("_", " ").title()))
 

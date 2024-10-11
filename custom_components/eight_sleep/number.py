@@ -2,9 +2,12 @@ from homeassistant.components.number import NumberEntity, NumberEntityDescriptio
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from custom_components.eight_sleep import EightSleepConfigEntryData
+from custom_components.eight_sleep import EightSleepBaseEntity, EightSleepConfigEntryData
 from custom_components.eight_sleep.const import DOMAIN
+from custom_components.eight_sleep.pyEight.eight import EightSleep
+from custom_components.eight_sleep.pyEight.user import EightUser
 
 FEET_DESCRIPTION = NumberEntityDescription(
     key="feet_angle",
@@ -12,7 +15,6 @@ FEET_DESCRIPTION = NumberEntityDescription(
     native_max_value=20,
     native_min_value=0,
     native_step=1,
-    translation_key="feet_angle",
     name="Feet Angle",
 )
 
@@ -22,7 +24,6 @@ HEAD_DESCRIPTION = NumberEntityDescription(
     native_max_value=45,
     native_min_value=0,
     native_step=1,
-    translation_key="head_angle",
     name="Head Angle",
 )
 
@@ -32,6 +33,7 @@ async def async_setup_entry(
 ) -> None:
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
+    coordinator = config_entry_data.user_coordinator
 
     entities: list[NumberEntity] = []
 
@@ -46,20 +48,39 @@ async def async_setup_entry(
             # Note: The API refers to these as "leg" and "torso" angles, but the app shows them as "feet" and "head"
             # angles. This is the point where we change the terminology to match the app.
             entities.extend([
-                EightNumberEntity(FEET_DESCRIPTION, lambda: user.leg_angle, set_leg_angle),
-                EightNumberEntity(HEAD_DESCRIPTION, lambda: user.torso_angle, set_torso_angle)])
+                EightNumberEntity(
+                    config_entry_data,
+                    coordinator,
+                    eight,
+                    user,
+                    FEET_DESCRIPTION,
+                    lambda: user.leg_angle,
+                    set_leg_angle),
+                EightNumberEntity(
+                    config_entry_data,
+                    coordinator,
+                    eight,
+                    user,
+                    HEAD_DESCRIPTION,
+                    lambda: user.torso_angle,
+                    set_torso_angle)])
 
     async_add_entities(entities)
 
 
-class EightNumberEntity(NumberEntity):
+class EightNumberEntity(EightSleepBaseEntity, NumberEntity):
 
     def __init__(
         self,
+        entry: EightSleepConfigEntryData,
+        coordinator: DataUpdateCoordinator,
+        eight: EightSleep,
+        user: EightUser | None,
         entity_description: NumberEntityDescription,
         value_getter: callable,
         set_value_callback: callable
     ):
+        super().__init__(entry, coordinator, eight, user, entity_description.key)
         self.entity_description = entity_description
         self._value_getter = value_getter
         self._set_value_callback = set_value_callback

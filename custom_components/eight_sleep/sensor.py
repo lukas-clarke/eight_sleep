@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from custom_components.eight_sleep.pyEight.user import EightUser
+
 from .pyEight.eight import EightSleep
 import voluptuous as vol
 
@@ -128,18 +130,18 @@ async def async_setup_entry(
 
     all_sensors: list[SensorEntity] = []
 
-    for obj in eight.users.values():
+    for user in eight.users.values():
         all_sensors.extend(
-            EightUserSensor(entry, user_coordinator, eight, obj.user_id, sensor)
+            EightUserSensor(entry, user_coordinator, eight, user, sensor)
             for sensor in EIGHT_USER_SENSORS
         )
         all_sensors.extend(
-            EightHeatSensor(entry, heat_coordinator, eight, obj.user_id, sensor)
+            EightHeatSensor(entry, heat_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
 
         if eight.has_base:
-            all_sensors.append(EightUserSensor(entry, user_coordinator, eight, obj.user_id, "base_preset"))
+            all_sensors.append(EightUserSensor(entry, user_coordinator, eight, user, "base_preset"))
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -219,18 +221,17 @@ class EightHeatSensor(EightSleepBaseEntity, SensorEntity):
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str,
+        user: EightUser | None,
         sensor: str,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user_id, sensor)
-        assert self._user_obj
+        super().__init__(entry, coordinator, eight, user, sensor)
 
         _LOGGER.debug(
             "Heat Sensor: %s, Side: %s, User: %s",
             self._sensor,
             self._user_obj.side,
-            self._user_id,
+            self._user_obj.user_id,
         )
 
     @property
@@ -275,11 +276,11 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str,
+        user: EightUser | None,
         sensor: str,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user_id, sensor)
+        super().__init__(entry, coordinator, eight, user, sensor)
         assert self._user_obj
 
         if self._sensor == "bed_temperature":
@@ -306,7 +307,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             "User Sensor: %s, Side: %s, User: %s",
             self._sensor,
             self._user_obj.side,
-            self._user_id,
+            self._user_obj.user_id,
         )
 
     @property
