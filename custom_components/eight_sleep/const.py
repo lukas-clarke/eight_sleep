@@ -3,9 +3,6 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 """Eight Sleep constants."""
 DOMAIN = "eight_sleep"
 
-HEAT_ENTITY = "heat"
-USER_ENTITY = "user"
-
 
 class NameMapEntity:
     def __init__(

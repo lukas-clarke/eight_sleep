@@ -42,7 +42,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER]
 
-HEAT_SCAN_INTERVAL = timedelta(seconds=60)
+DEVICE_SCAN_INTERVAL = timedelta(seconds=60)
 USER_SCAN_INTERVAL = timedelta(seconds=300)
 BASE_SCAN_INTERVAL = timedelta(seconds=60)
 
@@ -66,7 +66,7 @@ class EightSleepConfigEntryData:
     """Data used for all entities for a given config entry."""
 
     api: EightSleep
-    heat_coordinator: DataUpdateCoordinator
+    device_coordinator: DataUpdateCoordinator
     user_coordinator: DataUpdateCoordinator
     base_coordinator: DataUpdateCoordinator
 
@@ -125,11 +125,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Authentication failed, cannot continue
         return False
 
-    heat_coordinator: DataUpdateCoordinator = DataUpdateCoordinator(
+    device_coordinator: DataUpdateCoordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
-        name=f"{DOMAIN}_heat",
-        update_interval=HEAT_SCAN_INTERVAL,
+        name=f"{DOMAIN}_device",
+        update_interval=DEVICE_SCAN_INTERVAL,
         update_method=eight.update_device_data,
     )
     user_coordinator: DataUpdateCoordinator = DataUpdateCoordinator(
@@ -146,7 +146,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=BASE_SCAN_INTERVAL,
         update_method=eight.update_base_data,
     )
-    await heat_coordinator.async_config_entry_first_refresh()
+    await device_coordinator.async_config_entry_first_refresh()
     await user_coordinator.async_config_entry_first_refresh()
     await base_coordinator.async_config_entry_first_refresh()
 
@@ -190,7 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(
-        eight, heat_coordinator, user_coordinator, base_coordinator
+        eight, device_coordinator, user_coordinator, base_coordinator
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -251,7 +251,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
             self._config_entry.entry_id
         ]
-        await config_entry_data.heat_coordinator.async_request_refresh()
+        await config_entry_data.device_coordinator.async_request_refresh()
 
     async def async_heat_set(
         self, target: int, duration: int, sleep_stage: str

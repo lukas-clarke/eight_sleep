@@ -125,7 +125,7 @@ async def async_setup_entry(
     """Set up the eight sleep sensors."""
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
-    heat_coordinator = config_entry_data.heat_coordinator
+    device_coordinator = config_entry_data.device_coordinator
     user_coordinator = config_entry_data.user_coordinator
     base_coordinator = config_entry_data.base_coordinator
 
@@ -137,7 +137,7 @@ async def async_setup_entry(
             for sensor in EIGHT_USER_SENSORS
         )
         all_sensors.extend(
-            EightHeatSensor(entry, heat_coordinator, eight, user, sensor)
+            EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
 
