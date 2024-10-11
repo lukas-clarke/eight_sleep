@@ -285,6 +285,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if self._sensor == "bed_temperature":
             self._attr_icon = "mdi:thermometer"
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         elif self._sensor in (NAME_MAP):
             self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
