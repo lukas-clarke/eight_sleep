@@ -105,7 +105,21 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
 | Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
 | Side                    | Side  | String      | Yes      | The current side that this user side is set to                                                                                                                                                  |
+
 Sensor values are updated every 5 minutes
+
+When the Base is installed then the following sensors are available for each bed side:
+
+| Entity | Type | Notes |
+|---|---|---|
+| Snore Mitigation | Boolean | Indicates that the snore mitigation is active, raising the head |
+| Feet Angle | Number | Can be changed from the UI |
+| Head Angle | Number | Can be changed from the UI |
+| Base Preset | String | The app currently offers three presets for the base: sleeping, relaxing, and reading. |
+
+These values are updated every minute.
+Note that the Eight Sleep API provides them independently for each side, but in reality the two sides move at the same time.
+Perhaps this is something they will change in the future?
 
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
