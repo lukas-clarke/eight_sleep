@@ -36,9 +36,18 @@ NAME_MAP = {
     ),
     "presence_start": NameMapEntity(
         "Previous Presence Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
     ),
     "presence_end": NameMapEntity(
         "Previous Presence End",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
+    "next_alarm": NameMapEntity(
+        "Next Alarm",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
     ),
 }
 

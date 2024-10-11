@@ -291,12 +291,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_device_class = NAME_MAP[self._sensor].device_class
             self._attr_state_class = NAME_MAP[self._sensor].state_class
         elif (
-            self._sensor == "next_alarm"
-            or self._sensor == "presence_start"
-            or self._sensor == "presence_end"
-        ):
-            self._attr_device_class = SensorDeviceClass.TIMESTAMP
-        elif (
             self._sensor == "sleep_stage"
             or self._sensor == "bed_state_type"
             or self._sensor == "side"
@@ -322,8 +316,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
 
         if self._sensor in NAME_MAP:
             return getattr(self._user_obj, self._sensor)
-        if "next_alarm" in self._sensor:
-            return self._user_obj.next_alarm
         if "bed_state_type" in self._sensor:
             return self._user_obj.bed_state_type
         if "last" in self._sensor:
