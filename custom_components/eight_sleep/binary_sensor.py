@@ -54,7 +54,7 @@ async def async_setup_entry(
         if eight.has_base:
             entities.append(EightBinaryEntity(
                 entry,
-                config_entry_data.user_coordinator,
+                config_entry_data.base_coordinator,
                 eight,
                 user,
                 SNORE_MITIGATION_DESCRIPTION,

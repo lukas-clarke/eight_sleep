@@ -44,6 +44,7 @@ PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.NUMBER]
 
 HEAT_SCAN_INTERVAL = timedelta(seconds=60)
 USER_SCAN_INTERVAL = timedelta(seconds=300)
+BASE_SCAN_INTERVAL = timedelta(seconds=60)
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -67,6 +68,7 @@ class EightSleepConfigEntryData:
     api: EightSleep
     heat_coordinator: DataUpdateCoordinator
     user_coordinator: DataUpdateCoordinator
+    base_coordinator: DataUpdateCoordinator
 
 
 def _get_device_unique_id(eight: EightSleep, user_obj: EightUser | None = None) -> str:
@@ -137,8 +139,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=USER_SCAN_INTERVAL,
         update_method=eight.update_user_data,
     )
+    base_coordinator: DataUpdateCoordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_base",
+        update_interval=BASE_SCAN_INTERVAL,
+        update_method=eight.update_base_data,
+    )
     await heat_coordinator.async_config_entry_first_refresh()
     await user_coordinator.async_config_entry_first_refresh()
+    await base_coordinator.async_config_entry_first_refresh()
 
     if not eight.users:
         # No users, cannot continue
@@ -180,7 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(
-        eight, heat_coordinator, user_coordinator
+        eight, heat_coordinator, user_coordinator, base_coordinator
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -127,6 +127,7 @@ async def async_setup_entry(
     eight = config_entry_data.api
     heat_coordinator = config_entry_data.heat_coordinator
     user_coordinator = config_entry_data.user_coordinator
+    base_coordinator = config_entry_data.base_coordinator
 
     all_sensors: list[SensorEntity] = []
 
@@ -141,7 +142,7 @@ async def async_setup_entry(
         )
 
         if eight.has_base:
-            all_sensors.append(EightUserSensor(entry, user_coordinator, eight, user, "base_preset"))
+            all_sensors.append(EightUserSensor(entry, base_coordinator, eight, user, "base_preset"))
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)

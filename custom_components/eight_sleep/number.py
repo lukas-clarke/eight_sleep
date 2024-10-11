@@ -34,7 +34,7 @@ async def async_setup_entry(
 ) -> None:
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
-    coordinator = config_entry_data.user_coordinator
+    coordinator = config_entry_data.base_coordinator
 
     entities: list[NumberEntity] = []
 

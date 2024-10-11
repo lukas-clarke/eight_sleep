@@ -716,7 +716,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Update all user data."""
         self.side = await self.get_user_side()
         await self.update_intervals_data()
-        await self.update_base_data()
 
         now = datetime.today()
         start = now - timedelta(days=2)

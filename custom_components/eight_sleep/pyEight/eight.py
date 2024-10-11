@@ -246,8 +246,14 @@ class EightSleep:
 
     async def update_user_data(self) -> None:
         """Update data for users."""
-        for obj in self.users.values():
-            await obj.update_user()
+        for user in self.users.values():
+            await user.update_user()
+
+    async def update_base_data(self) -> None:
+        """Update data for the bed base."""
+        if self.has_base:
+            for user in self.users.values():
+                await user.update_base_data()
 
     async def start(self) -> bool:
         """Start api initialization."""
