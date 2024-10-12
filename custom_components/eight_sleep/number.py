@@ -17,7 +17,6 @@ FEET_DESCRIPTION = NumberEntityDescription(
     native_min_value=0,
     native_step=1,
     name="Feet Angle",
-    has_entity_name=True,
     icon="mdi:foot-print",
 )
 
@@ -28,7 +27,6 @@ HEAD_DESCRIPTION = NumberEntityDescription(
     native_min_value=0,
     native_step=1,
     name="Head Angle",
-    has_entity_name=True,
     icon="mdi:head",
 )
 

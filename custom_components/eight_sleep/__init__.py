@@ -232,6 +232,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     """The base Eight Sleep entity class."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         entry: ConfigEntry,
@@ -248,16 +250,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         self._sensor = sensor
         self._user_obj = user
 
-        mapped_name = str(NAME_MAP.get(sensor, sensor.replace("_", " ").title()))
-
-        if base_entity:
-            self._attr_name = f"Eight Sleep Base {mapped_name}"
-        elif self._user_obj is not None:
-            assert self._user_obj.user_profile
-            name = f"{self._user_obj.user_profile['firstName']}'s {mapped_name}"
-            self._attr_name = name
-        else:
-            self._attr_name = f"Eight Sleep {mapped_name}"
+        self._attr_name = str(NAME_MAP.get(sensor, sensor.replace("_", " ").title()))
 
         device_id = _get_device_unique_id(eight, self._user_obj, base_entity)
         self._attr_unique_id = f"{device_id}.{sensor}"

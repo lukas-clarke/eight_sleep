@@ -15,7 +15,6 @@ PRESETS = ["sleeping", "relaxing", "reading"]
 BASE_PRESET_DESCRIPTION = SelectEntityDescription(
     key="base_preset",
     name="Base Preset",
-    has_entity_name=True,
     icon="mdi:train-car-flatbed",
     options=PRESETS,
 )
