@@ -115,7 +115,7 @@ When the Base is installed, the following entities are available:
 | Snore Mitigation | Boolean | Indicates that the snore mitigation is active, raising the head |
 | Feet Angle | Number | Can be changed from the UI |
 | Head Angle | Number | Can be changed from the UI |
-| Base Preset | String | The app currently offers three presets for the base: sleeping, relaxing, and reading. |
+| Base Preset | Select | The app currently offers three presets for the base: sleep, relaxing, and reading. |
 
 These values are updated every minute.
 

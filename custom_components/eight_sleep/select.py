@@ -10,7 +10,7 @@ from custom_components.eight_sleep.const import DOMAIN
 from custom_components.eight_sleep.pyEight.eight import EightSleep
 from custom_components.eight_sleep.pyEight.user import EightUser
 
-PRESETS = ["sleeping", "relaxing", "reading"]
+PRESETS = ["sleep", "relaxing", "reading"]
 
 BASE_PRESET_DESCRIPTION = SelectEntityDescription(
     key="base_preset",

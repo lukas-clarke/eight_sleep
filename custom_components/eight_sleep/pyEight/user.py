@@ -152,7 +152,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def base_preset(self) -> str | None:
         """Return the base preset.
-        Currently these are sleeping, relaxing and reading."""
+        Currently these are sleep, relaxing and reading."""
         return self.base_data_for_side.get("preset", {}).get("name")
 
     @property
