@@ -127,7 +127,6 @@ async def async_setup_entry(
     eight = config_entry_data.api
     device_coordinator = config_entry_data.device_coordinator
     user_coordinator = config_entry_data.user_coordinator
-    base_coordinator = config_entry_data.base_coordinator
 
     all_sensors: list[SensorEntity] = []
 
@@ -140,16 +139,6 @@ async def async_setup_entry(
             EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
-
-    if eight.base_user:
-        all_sensors.append(EightUserSensor(
-            entry,
-            base_coordinator,
-            eight,
-            eight.base_user,
-            "base_preset",
-            base_entity=True
-        ))
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -305,7 +294,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._sensor == "sleep_stage"
             or self._sensor == "bed_state_type"
             or self._sensor == "side"
-            or self._sensor == "base_preset"
         ):
             # These have string values, leave the class None
             pass
@@ -333,8 +321,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.last_sleep_score
         if self._sensor == "side":
             return self._user_obj.side
-        if self._sensor == "base_preset":
-            return self._user_obj.base_preset
         if self._sensor == "bed_temperature":
             return self._user_obj.current_values["bed_temp"]
         if self._sensor == "sleep_stage":

@@ -22,12 +22,14 @@ from .const import DOMAIN
 BED_PRESENCE_DESCRIPTION = BinarySensorEntityDescription(
     key="bed_presence",
     name="Bed Presence",
+    has_entity_name=True,
     device_class=BinarySensorDeviceClass.OCCUPANCY,
 )
 
 SNORE_MITIGATION_DESCRIPTION = BinarySensorEntityDescription(
     key="snore_mitigation",
     name="Snore Mitigaton",
+    has_entity_name=True,
     icon="mdi:account-alert",
     device_class=BinarySensorDeviceClass.RUNNING,
 )

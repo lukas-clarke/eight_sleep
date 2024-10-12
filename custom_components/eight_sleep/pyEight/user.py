@@ -935,3 +935,18 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "enableOfflineMode": False
             }
             await self.device.api_request("POST", url, data=payload)
+
+    async def set_base_preset(self, preset: str) -> None:
+        """Set the preset of the bed base."""
+        if self.device.has_base:
+            # Update the preset locally
+            self.base_data_for_side["preset"]["name"] = preset
+
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
+            payload = {
+                "deviceId": self.device.device_id,
+                "deviceOnline": True,
+                "preset": preset,
+                "enableOfflineMode": False
+            }
+            await self.device.api_request("POST", url, data=payload)
