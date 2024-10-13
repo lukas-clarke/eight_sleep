@@ -32,12 +32,12 @@ NAME_MAP = {
         "Time Slept", "s", SensorDeviceClass.DURATION
     ),
     "presence_start": NameMapEntity(
-        "Previous Presence Start",
+        "Presence Start",
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
     "presence_end": NameMapEntity(
-        "Previous Presence End",
+        "Presence End",
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
