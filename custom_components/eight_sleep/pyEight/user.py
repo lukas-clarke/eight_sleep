@@ -638,8 +638,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.update_intervals_data()
 
         now = datetime.today()
-        start = now - timedelta(days=2)
-        end = now + timedelta(days=2)
+        start = now - timedelta(days=1)
+        end = now + timedelta(days=1)
 
         await self.update_trend_data(
             start.strftime(DATE_FORMAT), end.strftime(DATE_FORMAT)
