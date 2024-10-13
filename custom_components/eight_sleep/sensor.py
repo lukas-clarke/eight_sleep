@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from custom_components.eight_sleep.pyEight.user import EightUser
+
 from .pyEight.eight import EightSleep
 import voluptuous as vol
 
@@ -17,7 +19,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfTemperature,
-    UnitOfTime,
     CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
@@ -124,18 +125,18 @@ async def async_setup_entry(
     """Set up the eight sleep sensors."""
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
-    heat_coordinator = config_entry_data.heat_coordinator
+    device_coordinator = config_entry_data.device_coordinator
     user_coordinator = config_entry_data.user_coordinator
 
     all_sensors: list[SensorEntity] = []
 
-    for obj in eight.users.values():
+    for user in eight.users.values():
         all_sensors.extend(
-            EightUserSensor(entry, user_coordinator, eight, obj.user_id, sensor)
+            EightUserSensor(entry, user_coordinator, eight, user, sensor)
             for sensor in EIGHT_USER_SENSORS
         )
         all_sensors.extend(
-            EightHeatSensor(entry, heat_coordinator, eight, obj.user_id, sensor)
+            EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
 
@@ -217,18 +218,17 @@ class EightHeatSensor(EightSleepBaseEntity, SensorEntity):
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str,
+        user: EightUser | None,
         sensor: str,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user_id, sensor)
-        assert self._user_obj
+        super().__init__(entry, coordinator, eight, user, sensor)
 
         _LOGGER.debug(
             "Heat Sensor: %s, Side: %s, User: %s",
             self._sensor,
             self._user_obj.side,
-            self._user_id,
+            self._user_obj.user_id,
         )
 
     @property
@@ -273,42 +273,38 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str,
+        user: EightUser | None,
         sensor: str,
+        base_entity: bool = False
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user_id, sensor)
+        super().__init__(entry, coordinator, eight, user, sensor, base_entity)
         assert self._user_obj
 
         if self._sensor == "bed_temperature":
             self._attr_icon = "mdi:thermometer"
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         elif self._sensor in (NAME_MAP):
             self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
-            self._attr_state_class = NAME_MAP[self._sensor].device_class
-            self._attr_device_class = NAME_MAP[self._sensor].state_class
-
-        if (
-            self._sensor != "sleep_stage"
-            and self._sensor != "bed_state_type"
-            and self._sensor != "side"
+            self._attr_device_class = NAME_MAP[self._sensor].device_class
+            self._attr_state_class = NAME_MAP[self._sensor].state_class
+        elif (
+            self._sensor == "sleep_stage"
+            or self._sensor == "bed_state_type"
+            or self._sensor == "side"
         ):
+            # These have string values, leave the class None
+            pass
+        else:
             self._attr_state_class = SensorStateClass.MEASUREMENT
-
-        if (
-            self._sensor == "next_alarm"
-            or self._sensor == "presence_start"
-            or self._sensor == "presence_end"
-        ):
-            self._attr_device_class = SensorDeviceClass.TIMESTAMP
-            self._attr_state_class = None
 
         _LOGGER.debug(
             "User Sensor: %s, Side: %s, User: %s",
             self._sensor,
             self._user_obj.side,
-            self._user_id,
+            self._user_obj.user_id,
         )
 
     @property
@@ -319,18 +315,14 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
 
         if self._sensor in NAME_MAP:
             return getattr(self._user_obj, self._sensor)
-        if "next_alarm" in self._sensor:
-            return self._user_obj.next_alarm
         if "bed_state_type" in self._sensor:
             return self._user_obj.bed_state_type
         if "last" in self._sensor:
             return self._user_obj.last_sleep_score
-        if "side" == self._sensor:
+        if self._sensor == "side":
             return self._user_obj.side
-
         if self._sensor == "bed_temperature":
             return self._user_obj.current_values["bed_temp"]
-
         if self._sensor == "sleep_stage":
             return self._user_obj.current_values["stage"]
 

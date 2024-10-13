@@ -40,7 +40,7 @@ DEFAULT_API_HEADERS = {
     "accept-encoding": "gzip",
     "accept": "application/json",
     "host": "app-api.8slp.net",
-    "authorization": f"Bearer ADD",
+    "authorization": "Bearer ADD",
 }
 
 DEFAULT_AUTH_HEADERS = {

@@ -20,8 +20,19 @@ import time
 import httpx
 from aiohttp.client import ClientError, ClientSession, ClientTimeout
 
-from .constants import *
-from .exceptions import NotAuthenticatedError, RequestError
+from .constants import (
+    DEFAULT_TIMEOUT,
+    KNOWN_CLIENT_ID,
+    KNOWN_CLIENT_SECRET,
+    AUTH_URL,
+    DEFAULT_AUTH_HEADERS,
+    CLIENT_API_URL,
+    DEFAULT_API_HEADERS,
+    TOKEN_TIME_BUFFER_SECONDS,
+    RAW_TO_CELSIUS_MAP,
+    RAW_TO_FAHRENHEIT_MAP,
+)
+from .exceptions import RequestError
 from .user import EightUser
 from .structs import Token
 
@@ -38,9 +49,10 @@ class EightSleep:
         email: str,
         password: str,
         timezone: str,
-        client_id: str = None,
-        client_secret: str = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
         client_session: ClientSession | None = None,
+        httpx_client: httpx.AsyncClient | None = None,
         check_auth: bool = False,
     ) -> None:
         """Initialize eight sleep class."""
@@ -61,15 +73,17 @@ class EightSleep:
         self.users: dict[str, EightUser] = {}
 
         self._user_id: str | None = None
-        self._token: str | None = None
+        self._token: Token | None = None
         self._token_expiration: datetime | None = None
         self._device_ids: list[str] = []
         self._is_pod: bool = False
+        self._has_base: bool = False
 
         # Setup 10 element list
         self._device_json_list: list[dict] = []
 
         self._api_session = client_session
+        self._httpx_client = httpx_client
         self._internal_session: bool = False
 
         if check_auth:
@@ -85,11 +99,6 @@ class EightSleep:
             asyncio.run_coroutine_threadsafe(self.stop(), loop).result()
         except RuntimeError:
             asyncio.run(self.stop())
-
-    @property
-    def token(self) -> str | None:
-        """Return session token."""
-        return self._token
 
     @property
     def user_id(self) -> str | None:
@@ -129,8 +138,13 @@ class EightSleep:
 
     @property
     def is_pod(self) -> bool:
-        """Return if device is a POD."""
+        """Return if device is a Pod."""
         return self._is_pod
+
+    @property
+    def has_base(self) -> bool:
+        """Return if device has a base."""
+        return self._has_base
 
     def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
         """degree_unit can be 'c' or 'f'
@@ -187,24 +201,27 @@ class EightSleep:
             "username": self._email,
             "password": self._password,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                AUTH_URL,
-                headers=DEFAULT_AUTH_HEADERS,
-                json=data,
-                timeout=DEFAULT_TIMEOUT,
+
+        if not self._httpx_client:
+            self._httpx_client = httpx.AsyncClient()
+
+        response = await self._httpx_client.post(
+            AUTH_URL,
+            headers=DEFAULT_AUTH_HEADERS,
+            json=data,
+            timeout=DEFAULT_TIMEOUT,
+        )
+        if response.status_code == 200:
+            access_token_str = response.json()["access_token"]
+            expiration_seconds_int = (
+                float(response.json()["expires_in"]) + time.time()
             )
-            if response.status_code == 200:
-                access_token_str = response.json()["access_token"]
-                expiration_seconds_int = (
-                    float(response.json()["expires_in"]) + time.time()
-                )
-                main_id = response.json()["userId"]
-                return Token(access_token_str, expiration_seconds_int, main_id)
-            else:
-                raise RequestError(
-                    f"Auth request failed with status code: {response.status_code}"
-                )
+            main_id = response.json()["userId"]
+            return Token(access_token_str, expiration_seconds_int, main_id)
+        else:
+            raise RequestError(
+                f"Auth request failed with status code: {response.status_code}"
+            )
 
     @property
     async def token(self) -> Token:
@@ -229,8 +246,21 @@ class EightSleep:
 
     async def update_user_data(self) -> None:
         """Update data for users."""
-        for obj in self.users.values():
-            await obj.update_user()
+        for user in self.users.values():
+            await user.update_user()
+
+    async def update_base_data(self) -> None:
+        """Update data for the bed base.
+        While it's possible to retrieve the data for each user, the contents are identical."""
+        user = self.base_user
+        if user:
+            await user.update_base_data()
+
+    @property
+    def base_user(self) -> EightUser | None:
+        """Return the user object for the base."""
+        if self.has_base:
+            return next(iter(self.users.values()))
 
     async def start(self) -> bool:
         """Start api initialization."""
@@ -265,7 +295,10 @@ class EightSleep:
         if "cooling" in dlist["user"]["features"]:
             self._is_pod = True
 
-        _LOGGER.debug("Devices: %s, POD: %s", self._device_ids, self._is_pod)
+        if "elevation" in dlist["user"]["features"]:
+            self._has_base = True
+
+        _LOGGER.debug(f"Devices: {self._device_ids}, Pod: {self._is_pod}, Base: {self._has_base}")
 
     async def assign_users(self) -> None:
         """Update device properties."""

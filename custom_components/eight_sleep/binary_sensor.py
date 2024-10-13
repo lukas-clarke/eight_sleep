@@ -1,13 +1,15 @@
 """Support for Eight Sleep binary sensors."""
 from __future__ import annotations
+from typing import Callable
 
-import logging
+from custom_components.eight_sleep.pyEight.user import EightUser
 
 from .pyEight.eight import EightSleep
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -17,8 +19,18 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from . import EightSleepBaseEntity, EightSleepConfigEntryData
 from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
-BINARY_SENSORS = ["bed_presence"]
+BED_PRESENCE_DESCRIPTION = BinarySensorEntityDescription(
+    key="bed_presence",
+    name="Bed Presence",
+    device_class=BinarySensorDeviceClass.OCCUPANCY,
+)
+
+SNORE_MITIGATION_DESCRIPTION = BinarySensorEntityDescription(
+    key="snore_mitigation",
+    name="Snore Mitigaton",
+    icon="mdi:account-alert",
+    device_class=BinarySensorDeviceClass.RUNNING,
+)
 
 
 async def async_setup_entry(
@@ -27,39 +39,48 @@ async def async_setup_entry(
     """Set up the eight sleep binary sensor."""
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
-    heat_coordinator = config_entry_data.heat_coordinator
-    async_add_entities(
-        EightHeatSensor(entry, heat_coordinator, eight, user.user_id, binary_sensor)
-        for user in eight.users.values()
-        for binary_sensor in BINARY_SENSORS
-    )
+
+    entities: list[BinarySensorEntity] = []
+
+    for user in eight.users.values():
+        entities.append(EightBinaryEntity(
+            entry,
+            config_entry_data.device_coordinator,
+            eight,
+            user,
+            BED_PRESENCE_DESCRIPTION,
+            lambda: user.bed_presence))
+
+    if eight.base_user:
+        entities.append(EightBinaryEntity(
+            entry,
+            config_entry_data.base_coordinator,
+            eight,
+            None,
+            SNORE_MITIGATION_DESCRIPTION,
+            lambda: eight.base_user.in_snore_mitigation,
+            base_entity=True))
+
+    async_add_entities(entities)
 
 
-class EightHeatSensor(EightSleepBaseEntity, BinarySensorEntity):
-    """Representation of a Eight Sleep heat-based sensor."""
-
-    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+class EightBinaryEntity(EightSleepBaseEntity, BinarySensorEntity):
+    """Representation of an Eight Sleep binary entity."""
 
     def __init__(
         self,
         entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
         eight: EightSleep,
-        user_id: str | None,
-        sensor: str,
+        user: EightUser | None,
+        entity_description: BinarySensorEntityDescription,
+        value_getter: Callable[[], bool | None],
+        base_entity: bool = False
     ) -> None:
-        """Initialize the sensor."""
-        super().__init__(entry, coordinator, eight, user_id, sensor)
-        assert self._user_obj
-        _LOGGER.debug(
-            "Presence Sensor: %s, Side: %s, User: %s",
-            sensor,
-            self._user_obj.side,
-            user_id,
-        )
+        super().__init__(entry, coordinator, eight, user, entity_description.key, base_entity)
+        self.entity_description = entity_description
+        self._value_getter = value_getter
 
     @property
-    def is_on(self) -> bool:
-        """Return true if the binary sensor is on."""
-        assert self._user_obj
-        return bool(self._user_obj.bed_presence)
+    def is_on(self) -> bool | None:
+        return self._value_getter()

@@ -13,10 +13,8 @@ import logging
 import statistics
 from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
-import pytz
 
-from .constants import *
-from .constants import *
+from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
 
 if TYPE_CHECKING:
     from .eight import EightSleep
@@ -33,6 +31,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.user_id = user_id
         self.side = side
         self._user_profile: dict[str, Any] = {}
+        self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.intervals: list[dict[str, Any]] = []
         self.next_alarm = None
@@ -138,6 +137,38 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def user_profile(self) -> dict[str, Any] | None:
         """Return userdata."""
         return self._user_profile
+
+    @property
+    def base_data(self) -> dict[str, Any]:
+        """Return the base data."""
+        return self._base_data
+
+    @property
+    def base_data_for_side(self) -> dict[str, Any]:
+        """Return the base data for the user's side.
+        Currently the data is identical for both sides."""
+        return self.base_data.get(self.corrected_side_for_key, {})
+
+    @property
+    def base_preset(self) -> str | None:
+        """Return the base preset.
+        Currently these are sleep, relaxing and reading."""
+        return self.base_data_for_side.get("preset", {}).get("name")
+
+    @property
+    def leg_angle(self) -> int:
+        """Return the base leg angle."""
+        return self.base_data_for_side.get("leg", {}).get("currentAngle", 0)
+
+    @property
+    def torso_angle(self) -> int:
+        """Return the base torso angle."""
+        return self.base_data_for_side.get("torso", {}).get("currentAngle", 0)
+
+    @property
+    def in_snore_mitigation(self) -> bool:
+        """Return the snore mitigation state."""
+        return self.base_data_for_side.get("inSnoreMitigation", False)
 
     @property
     def bed_presence(self) -> bool:
@@ -334,11 +365,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return str(self._get_trend(0, ("sleepQualityScore", "hrv", "current")))
 
     @property
-    def current_heart_rate(self) -> int | None:
-        """Return wakeup consistency score for latest session."""
-        return str(self._get_trend(0, ("sleepRoutineScore", "heartRate", "current")))
-
-    @property
     def current_breath_rate(self) -> int | None:
         """Return wakeup consistency score for latest session."""
         return str(
@@ -449,7 +475,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def last_latency_out_score(self) -> int | None:
         """Return latency out score for previous session."""
-        return self._get_froutine_score(1, "latencyOutSeconds")
+        return self._get_routine_score(1, "latencyOutSeconds")
 
     @property
     def last_wakeup_consistency_score(self) -> int | None:
@@ -801,7 +827,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {
             "alarm": {"alarmId": self.next_alarm_id, "snoozeForMinutes": snooze_minutes}
         }
-        resp = await self.device.api_request("PUT", url, data=data)
+        await self.device.api_request("PUT", url, data=data)
 
     async def alarm_stop(self):
         """Stops the next user alarm"""
@@ -887,25 +913,40 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
         self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
 
-    def _convert_string_to_datetime(self, datetime_str):
-        datetime_str = str(datetime_str).strip()
-        # Convert string to datetime object.
-        try:
-            # Try to parse the first format
-            datetime_object = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            try:
-                # Try to parse the second format
-                datetime_object = datetime.strptime(
-                    datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ"
-                )
-            except ValueError:
-                # Handle if neither format is matched
-                raise ValueError(f"Unsupported date string format for {datetime_str}")
+    async def update_base_data(self):
+        """Update the data about the bed base."""
+        if self.device.has_base:
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base"
+            self._base_data = await self.device.api_request("GET", url)
 
-        # Set the timezone to UTC
-        utc_timezone = pytz.UTC
-        datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
-        # Set the timezone to a specific timezone
-        timezone = pytz.timezone(self.device.timezone)
-        return datetime_object_utc.astimezone(timezone)
+    async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
+        """Set the angles of the bed base."""
+        if self.device.has_base:
+            # Update the angles locally
+            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
+            self.base_data_for_side["torso"]["currentAngle"] = torso_angle
+
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
+            payload = {
+                "deviceId": self.device.device_id,
+                "deviceOnline": True,
+                "legAngle": leg_angle,
+                "torsoAngle": torso_angle,
+                "enableOfflineMode": False
+            }
+            await self.device.api_request("POST", url, data=payload)
+
+    async def set_base_preset(self, preset: str) -> None:
+        """Set the preset of the bed base."""
+        if self.device.has_base:
+            # Update the preset locally
+            self.base_data_for_side["preset"]["name"] = preset
+
+            url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
+            payload = {
+                "deviceId": self.device.device_id,
+                "deviceOnline": True,
+                "preset": preset,
+                "enableOfflineMode": False
+            }
+            await self.device.api_request("POST", url, data=payload)
