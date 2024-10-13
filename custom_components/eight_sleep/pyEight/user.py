@@ -133,16 +133,23 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Determine the last time a heart rate reading was taken.
         Uses the trends data because it is updated more frequently than intervals."""
         if not self.trends:
+            _LOGGER.debug(f"No trends data for {self.user_id}")
             return None
-        latest_day = self.trends[0]  # Assuming the most recent day is first in the list
+
+        latest_day = self.trends[-1]
         sessions = latest_day.get('sessions', [])
         if not sessions:
+            _LOGGER.debug(f"No session data for {self.user_id}")
             return None
+
         latest_session = sessions[-1]
         heart_rate_data = latest_session.get('timeseries', {}).get('heartRate', [])
         if not heart_rate_data:
+            _LOGGER.debug(f"No heart rate data for {self.user_id}")
             return None
+
         last_heart_rate_entry = heart_rate_data[-1]
+        _LOGGER.debug(f"Last heart rate: {last_heart_rate_entry} for {self.user_id}")
         return datetime.fromisoformat(last_heart_rate_entry[0].replace('Z', '+00:00'))
 
     @property
@@ -186,14 +193,14 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def bed_presence(self) -> bool:
         """Return true/false for bed presence based on recent heart rate data."""
         last_heart_rate_time = self._last_heart_rate_time()
-        _LOGGER.debug(f"Last heart rate: {last_heart_rate_time}")
 
         if last_heart_rate_time is None:
             return False
 
         time_difference = datetime.now(timezone.utc) - last_heart_rate_time
-        # Consider the person present if the last heart rate reading was within the last 30 minutes
-        return time_difference.total_seconds() < 60*30
+        # Consider the person present if the last heart rate reading was within the last 10 minutes
+        # This assumes that trends is updated every 5 minutes
+        return time_difference.total_seconds() < 600
 
     @property
     def target_heating_level(self) -> int | None:
@@ -794,7 +801,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
             "from": start_date,
             "to": end_date,
             "include-main": "false",
-            "include-all-sessions": "false",
+            "include-all-sessions": "true",
             "model-version": "v2",
         }
         trend_data = await self.device.api_request("get", url, params=params)
