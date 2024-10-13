@@ -78,7 +78,9 @@ There are a few services you can use on the <..>_bed_temperature entities:
 
 There are a few possible sensor values for each Eight Sleep side. Some ones with caveats are
 - **Bed Presence**
-  - There is no direct way to pull this from the API. There is an algorithm that tries to guess presence depending on if the bed temp is changing or not, but I haven't found it to be very accurate.
+  - Presence is calculated retroactively by Eight Sleep and is not reliable.
+  For example leaving the bed for an hour does not end the presence.
+  The lack of heart rate measurement is used instead to determine presence with a smaller delay.
 - **Next Alarm**
   - This will be the datetime value of your next alarm. If you have no alarms set, then it will be set to Unknown.
 
@@ -89,7 +91,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Last Prime              | Bed   | Datetime    | Yes      |                                                                                                                                                                                                 |
 | Needs Priming           | Bed   | Boolean     | Yes      |                                                                                                                                                                                                 |
 | Room Temperature        | Bed   | Temperature | Yes      |                                                                                                                                                                                                 |
-| Bed Presence            | Side  | Presence    | **No**   | Uses behaviours from bed to try and predict presence. <br>Since eight sleep doesn't expose live presence in the API, can't currently pull a reliable value.                                     |
+| Bed Presence            | Side  | Presence    | Sort Of  | Uses heart rate sensors to detect presence.                                                                                                                                                     |
 | Bed State               | Side  | Percent     | Sort Of  | This value is pulled directly from the API and relates to the target heating level. While it may not seem to relate to anything, some people are able to use it to correlate a bed presence to. |
 | Bed State Type          | Side  | String      | Yes      | Options are: "off", "smart:bedtime", "smart:initial", "smart:final"                                                                                                                             |
 | Bed Temperature         | Side  | Temperature | Yes*     | Only accurate when the pod is on.                                                                                                                                                               |
@@ -131,8 +133,7 @@ These values are updated every minute.
   - I believe you can use this integration without a subscription. This integration uses the same calls as the app. And I believe the app allows the calls the integration is using, even when not having a subscription.
 I don't have any way to test it out though, because I have a grandfathered account.
 - Can I use this integration to get a reliable, current bed presence?
-  - No. Unfortunately, this a restriction imposed by 8 sleep. The app API doesn't expose bed state. The bed state works by guessing patterns based on the bed temperature changes, but isn't very reliable.
-The only real solution is for 8 sleep to expose the bed state in their API, which they would be able to do since the cover sends that info to their servers.
+  - No. Presence is calculated retroactively by Eight Sleep based on sensor data. It's neither reliable, nor real-time.
 ### Credits ###
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 

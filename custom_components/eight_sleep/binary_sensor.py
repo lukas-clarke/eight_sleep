@@ -45,7 +45,7 @@ async def async_setup_entry(
     for user in eight.users.values():
         entities.append(EightBinaryEntity(
             entry,
-            config_entry_data.device_coordinator,
+            config_entry_data.user_coordinator,
             eight,
             user,
             BED_PRESENCE_DESCRIPTION,

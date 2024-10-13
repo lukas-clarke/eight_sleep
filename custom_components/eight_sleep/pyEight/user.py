@@ -8,7 +8,7 @@ Licensed under the MIT license.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import statistics
 from typing import TYPE_CHECKING, Any, Optional, cast
@@ -38,10 +38,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
-
-        # Variables to do dynamic presence
-        self.presence: bool = False
-        self.observed_low: int = 0
 
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
         """Get trend value for specified key."""
@@ -133,6 +129,22 @@ class EightUser:  # pylint: disable=too-many-public-methods
             return None
         return self.intervals[interval_num].get("incomplete", False)
 
+    def _last_heart_rate_time(self) -> datetime | None:
+        """Determine the last time a heart rate reading was taken.
+        Uses the trends data because it is updated more frequently than intervals."""
+        if not self.trends:
+            return None
+        latest_day = self.trends[0]  # Assuming the most recent day is first in the list
+        sessions = latest_day.get('sessions', [])
+        if not sessions:
+            return None
+        latest_session = sessions[-1]
+        heart_rate_data = latest_session.get('timeseries', {}).get('heartRate', [])
+        if not heart_rate_data:
+            return None
+        last_heart_rate_entry = heart_rate_data[-1]
+        return datetime.fromisoformat(last_heart_rate_entry[0].replace('Z', '+00:00'))
+
     @property
     def user_profile(self) -> dict[str, Any] | None:
         """Return userdata."""
@@ -172,8 +184,16 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     @property
     def bed_presence(self) -> bool:
-        """Return true/false for bed presence."""
-        return self.presence
+        """Return true/false for bed presence based on recent heart rate data."""
+        last_heart_rate_time = self._last_heart_rate_time()
+        _LOGGER.debug(f"Last heart rate: {last_heart_rate_time}")
+
+        if last_heart_rate_time is None:
+            return False
+
+        time_difference = datetime.now(timezone.utc) - last_heart_rate_time
+        # Consider the person present if the last heart rate reading was within the last 30 minutes
+        return time_difference.total_seconds() < 60*30
 
     @property
     def target_heating_level(self) -> int | None:
@@ -185,19 +205,16 @@ class EightUser:  # pylint: disable=too-many-public-methods
     @property
     def heating_level(self) -> int | None:
         """Return heating/cooling level."""
-        level = self.device.device_data.get(
-            f"{self.corrected_side_for_key}HeatingLevel"
-        )
-        if level is None:
-            for data in self.device.device_data_history:
-                level = data.get(f"{self.corrected_side_for_key}HeatingLevel")
-                if level is not None:
-                    break
+        key = f"{self.corrected_side_for_key}HeatingLevel"
+        level = self.device.device_data.get(key)
 
-        # Update observed low
-        if level is not None and level < self.observed_low:
-            self.observed_low = level
-        return level
+        if level is not None:
+            return level
+
+        for data in self.device.device_data_history:
+            level = data.get(key)
+            if level is not None:
+                return level
 
     @property
     def corrected_side_for_key(self) -> str:
@@ -607,112 +624,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("%s Heating 10 min variance: %s", self.side, tenvar)
         except statistics.StatisticsError:
             _LOGGER.debug("Cant calculate stats yet...")
-
-        # Other possible options for exploration....
-        # Pearson correlation coefficient
-        # Spearman rank correlation
-        # Kendalls Tau
-
-    def dynamic_presence(self) -> None:
-        """
-        Determine presence based on bed heating level and end presence
-        time reported by the api.
-
-        Idea originated from Alex Lee Yuk Cheung SmartThings Code.
-        """
-
-        # self.heating_stats()
-
-        # Method needs to be different for pod since it doesn't rest at 0
-        #  - Working idea is to track the low and adjust the scale so that low is 0
-        #  - Buffer changes while cooling/heating is active
-        if self.target_heating_level is None or self.heating_level is None:
-            return
-        level_zero = self.observed_low * (-1)
-        working_level = self.heating_level + level_zero
-        if self.device.is_pod:
-            if not self.presence:
-                if working_level > 50:
-                    if not self.now_cooling and not self.now_heating:
-                        self.presence = True
-                    elif self.target_heating_level > 0:
-                        # Heating
-                        if working_level - self.target_heating_level >= 8:
-                            self.presence = True
-                    elif self.target_heating_level < 0:
-                        # Cooling
-                        if self.heating_level + self.target_heating_level >= 8:
-                            self.presence = True
-                elif working_level > 25:
-                    # Catch rising edge
-                    if (
-                        self.past_heating_level(0) - self.past_heating_level(1) >= 2
-                        and self.past_heating_level(1) - self.past_heating_level(2) >= 2
-                        and self.past_heating_level(2) - self.past_heating_level(3) >= 2
-                    ):
-                        # Values are increasing so we are likely in bed
-                        if not self.now_heating:
-                            self.presence = True
-                        elif working_level - self.target_heating_level >= 8:
-                            self.presence = True
-
-            elif self.presence:
-                if working_level <= 15:
-                    # Failsafe, very slow
-                    self.presence = False
-                elif working_level < 35:  # Threshold is expiremental for now
-                    if (
-                        self.past_heating_level(0) - self.past_heating_level(1) < 0
-                        and self.past_heating_level(1) - self.past_heating_level(2) < 0
-                        and self.past_heating_level(2) - self.past_heating_level(3) < 0
-                    ):
-                        # Values are decreasing so we are likely out of bed
-                        self.presence = False
-        else:
-            # Method for 0 resting state
-            if not self.presence:
-                if self.heating_level > 50:
-                    # Can likely make this better
-                    if not self.now_heating:
-                        self.presence = True
-                    elif self.heating_level - self.target_heating_level >= 8:
-                        self.presence = True
-                elif self.heating_level > 25:
-                    # Catch rising edge
-                    if (
-                        self.past_heating_level(0) - self.past_heating_level(1) >= 2
-                        and self.past_heating_level(1) - self.past_heating_level(2) >= 2
-                        and self.past_heating_level(2) - self.past_heating_level(3) >= 2
-                    ):
-                        # Values are increasing so we are likely in bed
-                        if not self.now_heating:
-                            self.presence = True
-                        elif self.heating_level - self.target_heating_level >= 8:
-                            self.presence = True
-
-            elif self.presence:
-                if self.heating_level <= 15:
-                    # Failsafe, very slow
-                    self.presence = False
-                elif self.heating_level < 50:
-                    if (
-                        self.past_heating_level(0) - self.past_heating_level(1) < 0
-                        and self.past_heating_level(1) - self.past_heating_level(2) < 0
-                        and self.past_heating_level(2) - self.past_heating_level(3) < 0
-                    ):
-                        # Values are decreasing so we are likely out of bed
-                        self.presence = False
-
-        # Last seen can lag real-time by up to 35min so this is
-        # mostly a backup to using the heat values.
-        # seen_delta = datetime.fromtimestamp(time.time()) \
-        #     - datetime.strptime(self.last_seen, 'DATE_TIME_ISO_FORMAT')
-        # _LOGGER.debug('%s Last seen time delta: %s', self.side,
-        #               seen_delta.total_seconds())
-        # if self.presence and seen_delta.total_seconds() > 2100:
-        #     self.presence = False
-
-        _LOGGER.debug("%s Presence Results: %s", self.side, self.presence)
 
     async def update_user(self) -> None:
         """Update all user data."""
