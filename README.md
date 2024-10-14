@@ -12,35 +12,18 @@ Home Assistant Eight Sleep integration that works with Eight Sleep's V2 API and 
 
 NOTE: Ensure neither side is in away mode when setting up the Eight Sleep integration.
 
-## Prerequisites ##
-### Authentication ###
- 
+## Authentication
 
-To get the OAuth2 login to work you need:
-- user email
-- user password
+When setting up the integration you need your Eight Sleep credentials:
+- Email
+- Password
 
-UPDATE: You now only need your user name and password for Eight Sleep's current OAuth2 implementation. If you don't have your client_id and/or client_secret, leave those values blank when setting up the integration.
-<strike>
+You can leave the client_id and/or client_secret blank.
 
-- client_id
-- client_secret
+> [!NOTE]
+> If you really want to set your own client ID and secret, you can capture the login POST request from the app to auth-api.8slp.net.
 
-
-To get the client_id and client_secret you can setup a packet capture and a mitm CA to get the unencrypted traffic from your app. You can also decompile the APK to get the values.
-
-The process I used was:
-- Open pcapdroid and install PCAPDroid mitm
-- download and install rootAVD https://github.com/newbit1/video-files/blob/master/rootAVD_Windows.gif 
-  - 2 ways to root an AVD (android studio); Magisk (rootAVD) and SuperSU
-- Should auto install magisk
-- Run the avd root install steps then open a cmd in ..\rootavd\rootAVD
-- Install the mitm cert (mitmproxy-ca-cert.cert)
-- https://emanuele-f.github.io/PCAPdroid/tls_decryption the MagiskTrustUserCerts module, and then install the hashed certificate (replace mitmproxy-ca-cert.cer with the PCAPdroid certificate name) as a system certificate. 	
-- Run the app and capture date in pcapdroid. 
-  - Make sure you capture the data during an app login session. The data should be in the POST request from the app to auth-api.8slp.net.~~</strike>
-
-## Usage ##
+## Usage
 The integration will function similarly to the previous Home Assistant core Eight Sleep integration. It will import the Eight Sleep bed sides and account as devices.
 <br>Setting the temperature on the bed is between a -100 to 100 range. This range is unit-less in the API.
 
