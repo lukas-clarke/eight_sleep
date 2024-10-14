@@ -45,20 +45,21 @@ async def async_setup_entry(
     for user in eight.users.values():
         entities.append(EightBinaryEntity(
             entry,
-            config_entry_data.device_coordinator,
+            config_entry_data.user_coordinator,
             eight,
             user,
             BED_PRESENCE_DESCRIPTION,
-            lambda: user.bed_presence))
+            lambda user=user: user.bed_presence))
 
-    if eight.base_user:
+    base_user = eight.base_user
+    if base_user:
         entities.append(EightBinaryEntity(
             entry,
             config_entry_data.base_coordinator,
             eight,
             None,
             SNORE_MITIGATION_DESCRIPTION,
-            lambda: eight.base_user.in_snore_mitigation,
+            lambda: base_user.in_snore_mitigation,
             base_entity=True))
 
     async_add_entities(entities)
