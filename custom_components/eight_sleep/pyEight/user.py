@@ -934,13 +934,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "torsoAngle": torso_angle,
                 "enableOfflineMode": False
             }
-            await self.device.api_request("POST", url, data=payload)
+            await self.device.api_request("POST", url, data=payload, return_json=False)
 
     async def set_base_preset(self, preset: str) -> None:
         """Set the preset of the bed base."""
         if self.device.has_base:
             # Update the preset locally
-            self.base_data_for_side["preset"]["name"] = preset
+            # Note: The preset goes missing from the local data when a custom angle is used
+            # and it also goes missing after some time
+            self.base_data_for_side.setdefault("preset", {})["name"] = preset
 
             url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
             payload = {
@@ -949,4 +951,4 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "preset": preset,
                 "enableOfflineMode": False
             }
-            await self.device.api_request("POST", url, data=payload)
+            await self.device.api_request("POST", url, data=payload, return_json=False)
