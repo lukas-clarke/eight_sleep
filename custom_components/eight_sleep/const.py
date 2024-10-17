@@ -46,6 +46,12 @@ NAME_MAP = {
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
+    "target_heating_temp": NameMapEntity(
+        "Target Temperature",
+        "°C",
+        SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT
+    ),
 }
 
 SERVICE_HEAT_SET = "heat_set"
