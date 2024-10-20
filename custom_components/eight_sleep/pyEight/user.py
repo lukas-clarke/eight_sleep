@@ -32,6 +32,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._user_profile: dict[str, Any] = {}
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
+        self.routines: list[dict[str, Any]] = []
         self.next_alarm = None
         self.next_alarm_id = None
         self.bed_state_type = None
@@ -103,6 +104,23 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if len(self.trends) < trend_num + 1:
             return None
         return self.trends[-(trend_num + 1)].get("processing", False)
+
+    def _get_routine(self, id: str) -> dict[str, Any]:
+        """Get routine data for the specified ID."""
+        for routine in self.routines:
+            if routine["id"] == id:
+                return routine
+
+        raise Exception(f"Routine with ID {id} not found")
+
+    def get_alarm(self, id: str) -> dict[str, Any]:
+        """Get alarm data for the specified ID."""
+        for routine in self.routines:
+            for alarm in routine["alarms"]:
+                if alarm["alarmId"] == id:
+                    return alarm
+
+        raise Exception(f"Alarm with ID {id} not found")
 
     @property
     def user_profile(self) -> dict[str, Any] | None:
@@ -725,6 +743,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {"alarm": {"alarmId": self.next_alarm_id, "dismissed": True}}
         await self.device.api_request("PUT", url, data=data)
 
+    async def set_alarm_enabled(self, routine_id: str, alarm_id: str, enabled: bool) -> None:
+        """Enables or disables the alarm with the specified ID"""
+        url = APP_API_URL + f"v2/users/{self.user_id}/routines/{routine_id}"
+        routine = self._get_routine(routine_id)
+
+        for alarm in routine["alarms"]:
+            if alarm["alarmId"] == alarm_id:
+                alarm["enabled"] = enabled
+                break
+        else:
+            raise ValueError(f"Alarm with ID {alarm_id} not found")
+
+        await self.device.api_request("PUT", url, data=routine)
+
     async def turn_off_side(self):
         """Turns on the side of the user"""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
@@ -773,6 +805,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         url = APP_API_URL + f"v2/users/{self.user_id}/routines"
         resp = await self.device.api_request("GET", url)
 
+        self.routines = resp["settings"]["routines"]
+
         try:
             nextTimestamp = resp["state"]["nextAlarm"]["nextTimestamp"]
         except KeyError:
@@ -781,10 +815,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if not nextTimestamp:
             self.next_alarm = None
             self.next_alarm_id = None
-            return
-
-        self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
-        self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
+        else:
+            self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
+            self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
 
     async def update_base_data(self):
         """Update the data about the bed base."""
