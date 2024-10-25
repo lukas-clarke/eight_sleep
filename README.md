@@ -95,6 +95,7 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Bed State               | Side  | Percent     | Sort Of  | This value is pulled directly from the API and relates to the target heating level. While it may not seem to relate to anything, some people are able to use it to correlate a bed presence to. |
 | Bed State Type          | Side  | String      | Yes      | Options are: "off", "smart:bedtime", "smart:initial", "smart:final"                                                                                                                             |
 | Bed Temperature         | Side  | Temperature | Yes*     | Only accurate when the pod is on.                                                                                                                                                               |
+| Target Temperature      | Side  | Temperature | Yes      | The target temperature for the bed side in degrees.                                                                                                                                             |
 | Breath Rate             | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Heart Rate              | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | HRV                     | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
@@ -124,7 +125,6 @@ These values are updated every minute.
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
 - Add device actions, so they can be used instead of service calls.
-- Add the target temperature as a sensor
 - Add local device functionality for jailbroken devices using the steps in https://github.com/bobobo1618/ninesleep
 - Add icons.json file
 

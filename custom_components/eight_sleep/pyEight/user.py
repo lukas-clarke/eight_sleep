@@ -36,6 +36,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
+        self.target_heating_temp = None
 
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
         """Get trend value for specified key."""
@@ -606,6 +607,13 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
             current_side_temp_raw, "c"
         )
+
+        if self.target_heating_level is None:
+            self.target_heating_temp = None
+        else:
+            self.target_heating_temp = self.device.convert_raw_bed_temp_to_degrees(
+                self.target_heating_level, "c"
+            )
 
     async def set_bed_side(self, side) -> None:
         side = str(side).lower()
