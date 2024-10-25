@@ -353,8 +353,6 @@ class EightSleep:
         device_resp = await self.api_request("get", url)
         # Want to keep last 10 readings so purge the last after we add
         self.handle_device_json(device_resp["result"])
-        for obj in self.users.values():
-            obj.dynamic_presence()
 
     async def api_request(
         self,
