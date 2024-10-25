@@ -8,7 +8,7 @@ Licensed under the MIT license.
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 0
-SUB_MINOR_VERSION = 0
+SUB_MINOR_VERSION = 18
 __version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}.{SUB_MINOR_VERSION}"
 
 DEFAULT_TIMEOUT = 240
@@ -36,7 +36,7 @@ TOKEN_TIME_BUFFER_SECONDS = 120
 DEFAULT_API_HEADERS = {
     "content-type": "application/json",
     "connection": "keep-alive",
-    "user-agent": "Android App",
+    "user-agent": f"Home Assistant {__version__}",
     "accept-encoding": "gzip",
     "accept": "application/json",
     "host": "app-api.8slp.net",
@@ -45,7 +45,7 @@ DEFAULT_API_HEADERS = {
 
 DEFAULT_AUTH_HEADERS = {
     "content-type": "application/json",
-    "user-agent": "Android App",
+    "user-agent": f"Home Assistant {__version__}",
     "accept-encoding": "gzip",
     "accept": "application/json",
 }
