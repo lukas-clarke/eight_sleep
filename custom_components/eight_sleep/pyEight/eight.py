@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import asyncio
 import atexit
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
+from dateutil import parser
 import logging
 from typing import Any
 import time
+from zoneinfo import ZoneInfo
 
 import httpx
 from aiohttp.client import ClientError, ClientSession, ClientTimeout
@@ -170,28 +171,19 @@ class EightSleep:
             last_raw_unit = raw_unit
         raise Exception(f"Raw value {raw_value} unable to be mapped.")
 
-    def convert_string_to_datetime(self, datetime_str):
-        datetime_str = str(datetime_str).strip()
-        # Convert string to datetime object.
+    def convert_string_to_datetime(self, datetime_str) -> datetime:
         try:
-            # Try to parse the first format
-            datetime_object = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            try:
-                # Try to parse the second format
-                datetime_object = datetime.strptime(
-                    datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ"
-                )
-            except ValueError:
-                # Handle if neither format is matched
-                raise ValueError(f"Unsupported date string format for {datetime_str}")
+            # Parse the datetime string
+            dt = parser.isoparse(str(datetime_str).strip())
 
-        # Set the timezone to UTC
-        utc_timezone = pytz.UTC
-        datetime_object_utc = datetime_object.replace(tzinfo=utc_timezone)
-        # Set the timezone to a specific timezone
-        timezone = pytz.timezone(self.timezone)
-        return datetime_object_utc.astimezone(timezone)
+            # If the datetime is naive (no timezone info), assume it's UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+
+            # Convert to the desired timezone
+            return dt.astimezone(ZoneInfo(self.timezone))
+        except ValueError:
+            raise ValueError(f"Unsupported date string format: {datetime_str}")
 
     async def _get_auth(self) -> Token:
         data = {
