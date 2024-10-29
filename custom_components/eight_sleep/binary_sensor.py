@@ -29,7 +29,6 @@ SNORE_MITIGATION_DESCRIPTION = BinarySensorEntityDescription(
     key="snore_mitigation",
     name="Snore Mitigaton",
     icon="mdi:account-alert",
-    device_class=BinarySensorDeviceClass.RUNNING,
 )
 
 
