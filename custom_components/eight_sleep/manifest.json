@@ -9,6 +9,6 @@
     "issue_tracker": "https://github.com/lukas-clarke/eight_sleep/issues",
     "loggers": ["pyEight"],
     "requirements": ["httpx", "aiohttp"],
-    "version": "1.0.18"
+    "version": "1.0.19"
 
 }
