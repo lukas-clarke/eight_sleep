@@ -105,6 +105,16 @@ When the Base is installed, the following entities are available:
 
 These values are updated every minute.
 
+### Alarms ###
+There are alarm switches that will be auto-configured for each alarm you have setup. 
+In order to modify/sync the alarms with the eight sleep app you will need to either reload the integration, or reboot Home Assistant.
+
+![example_alarms.png](./images/examples/example_alarms.png)
+
+Further information about the alarms are available under attributes:
+![example_alarm_attributes.png](./images/examples/example_alarm_attributes.png)
+
+
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
 - Add device actions, so they can be used instead of service calls.
