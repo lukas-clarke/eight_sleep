@@ -105,6 +105,16 @@ When the Base is installed, the following entities are available:
 
 These values are updated every minute.
 
+### Alarms ###
+There are alarm switches that will be auto-configured for each alarm you have setup. 
+In order to modify/sync the alarms with the eight sleep app you will need to either reload the integration, or reboot Home Assistant.
+
+![example_alarms.png](./images/examples/example_alarms.png)
+
+Further information about the alarms are available under attributes:
+![example_alarm_attributes.png](./images/examples/example_alarm_attributes.png)
+
+
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
 - Add device actions, so they can be used instead of service calls.
@@ -112,11 +122,23 @@ These values are updated every minute.
 - Add icons.json file
 
 ## FAQS ##
-- Can I use this integration without an Eight Sleep subscription?
+- **Can I use this integration without an Eight Sleep subscription?**
   - I believe you can use this integration without a subscription. This integration uses the same calls as the app. And I believe the app allows the calls the integration is using, even when not having a subscription.
 I don't have any way to test it out though, because I have a grandfathered account.
-- Can I use this integration to get a reliable, current bed presence?
+- **Can I use this integration to get a reliable, current bed presence?**
   - No. Presence is calculated retroactively by Eight Sleep based on sensor data. It's neither reliable, nor real-time.
+- **How do I capture the Eight Sleep app traffic?**
+  - To get the client_id and client_secret you can setup a packet capture and a mitm CA to get the unencrypted traffic from your app. You can also decompile the APK to get the values. 
+  - The process I used was:
+    - Open pcapdroid and install PCAPDroid mitm
+    - download and install rootAVD https://github.com/newbit1/video-files/blob/master/rootAVD_Windows.gif 
+      - 2 ways to root an AVD (android studio); Magisk (rootAVD) and SuperSU
+    - Should auto install magisk
+    - Run the avd root install steps then open a cmd in ..\rootavd\rootAVD
+    - Install the mitm cert (mitmproxy-ca-cert.cert)
+    - https://emanuele-f.github.io/PCAPdroid/tls_decryption the MagiskTrustUserCerts module, and then install the hashed certificate (replace mitmproxy-ca-cert.cer with the PCAPdroid certificate name) as a system certificate. 	
+    - Run the app and capture date in pcapdroid. 
+      - Make sure you capture the data during an app login session. The data should be in the POST request from the app to auth-api.8slp.net
 ### Credits ###
 Thanks to @mezz64 and @raman325 for developing the previous Eight Sleep integration.
 
