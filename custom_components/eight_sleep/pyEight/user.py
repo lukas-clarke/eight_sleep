@@ -113,14 +113,48 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         raise Exception(f"Routine with ID {id} not found")
 
-    def get_alarm(self, id: str) -> dict[str, Any]:
-        """Get alarm data for the specified ID."""
+    def get_alarm_enabled(self, id: str | None) -> bool:
+        """Get alarm enabled for the specified ID.
+        If no ID is specified, the next alarm will be used."""
+        check_next_alarm = id is None
+        if check_next_alarm:
+            if self.next_alarm_id:
+                id = self.next_alarm_id
+            else:
+                return False
+        
+        # There are two fields that represent the state of an alarm:
+        #
+        # "enabled" represents whether the alarm will be active next time.
+        # We use this when displaying the next alarm as it can be toggled
+        # on/off independently of your routine.
+        #
+        # "disabledIndividually" represents whether the user turned off the alarm
+        # for all days of a routine. We use this when displaying regular alarms.
         for routine in self.routines:
+            if "override" in routine:
+                for alarm in routine["override"]["alarms"]:
+                    if alarm["alarmId"] == id:
+                        return alarm["enabled"] if check_next_alarm else not alarm["disabledIndividually"]
+
             for alarm in routine["alarms"]:
                 if alarm["alarmId"] == id:
-                    return alarm
+                    return alarm["enabled"] if check_next_alarm else not alarm["disabledIndividually"]
 
         raise Exception(f"Alarm with ID {id} not found")
+    
+    def _get_next_alarm_routine_id(self) -> str:
+        for routine in self.routines:
+            if "override" in routine:
+                for alarm in routine["override"]["alarms"]:
+                    if alarm["alarmId"] == self.next_alarm_id:
+                        return routine["id"]
+
+            for alarm in routine["alarms"]:
+                if alarm["alarmId"] == self.next_alarm_id:
+                    return routine["id"]
+                
+        raise Exception(f"Alarm with ID {self.next_alarm_id} not found")
 
     @property
     def user_profile(self) -> dict[str, Any] | None:
@@ -743,19 +777,63 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {"alarm": {"alarmId": self.next_alarm_id, "dismissed": True}}
         await self.device.api_request("PUT", url, data=data)
 
-    async def set_alarm_enabled(self, routine_id: str, alarm_id: str, enabled: bool) -> None:
-        """Enables or disables the alarm with the specified ID"""
+    async def set_alarm_enabled(self, routine_id: str | None, alarm_id: str | None, enabled: bool) -> None:
+        """Enables or disables the alarm.
+        If no ID is specified, the next alarm will be used."""
+        
+        if routine_id and alarm_id:
+            await self._set_alarm_enabled(routine_id, alarm_id, enabled)
+            return
+        
+        if self.next_alarm_id is None:
+            # We don't do anything for now if there is no next alarm
+            return
+        
+        routine_id = self._get_next_alarm_routine_id()
+        routine = self._get_routine(routine_id)
+        # If there is already an override, toggle it
+        if "override" in routine:
+            await self._set_alarm_enabled(routine_id, self.next_alarm_id, enabled)
+            return
+        
+        # Otherwise create a new override
+        for alarm in routine["alarms"]:
+            if alarm["alarmId"] == self.next_alarm_id:
+                routine["override"] = {
+                    "routineEnabled": True,
+                    "alarms": [{
+                        "enabled": enabled,
+                        "disabledIndividually": not enabled,
+                        "settings": alarm["settings"],
+                        "dismissUntil": alarm.get("dismissUntil"),
+                        "snoozeUntil": alarm.get("snoozeUntil"),
+                        "time": alarm["timeWithOffset"]["time"],
+                    }],
+                }
+                await self.device.api_request("PUT", f"{APP_API_URL}v2/users/{self.user_id}/routines/{routine_id}", data=routine)
+                return
+
+    async def _set_alarm_enabled(self, routine_id: str, alarm_id: str, enabled: bool) -> None:
+        """Enables or disables the alarm with the specified ID."""
         url = APP_API_URL + f"v2/users/{self.user_id}/routines/{routine_id}"
         routine = self._get_routine(routine_id)
+
+        if "override" in routine:
+            for alarm in routine["override"]["alarms"]:
+                if alarm["alarmId"] == alarm_id:
+                    alarm["enabled"] = enabled
+                    alarm["disabledIndividually"] = not enabled
+                    await self.device.api_request("PUT", url, data=routine)
+                    return
 
         for alarm in routine["alarms"]:
             if alarm["alarmId"] == alarm_id:
                 alarm["enabled"] = enabled
-                break
-        else:
-            raise ValueError(f"Alarm with ID {alarm_id} not found")
+                alarm["disabledIndividually"] = not enabled
+                await self.device.api_request("PUT", url, data=routine)
+                return
 
-        await self.device.api_request("PUT", url, data=routine)
+        raise ValueError(f"Alarm with ID {alarm_id} not found")
 
     async def turn_off_side(self):
         """Turns on the side of the user"""
@@ -815,6 +893,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if not nextTimestamp:
             self.next_alarm = None
             self.next_alarm_id = None
+            
+            # Check if there is an upcoming routine with an alarm (which is currently disabled)
+            if "upcomingRoutineId" in resp["state"]:
+                upcoming_routine = self._get_routine(resp["state"]["upcomingRoutineId"])
+                if upcoming_routine.get("override"):
+                    if upcoming_routine["override"].get("alarms"):
+                        self.next_alarm_id = upcoming_routine["override"]["alarms"][0]["alarmId"]
+                elif upcoming_routine.get("alarms"):
+                    self.next_alarm_id = upcoming_routine["alarms"][0]["alarmId"]
         else:
             self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
             self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
