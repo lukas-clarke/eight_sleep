@@ -87,17 +87,27 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
             alarm_id = self._alarm_id or self._user_obj.next_alarm_id
             if alarm_id:
                 for routine in self._user_obj.routines:
+                    if "override" in routine:
+                        for alarm in routine["override"]["alarms"]:
+                            if alarm["alarmId"] == alarm_id:
+                                self._attr_extra_state_attributes["time"] = alarm["time"]
+                                self._attr_extra_state_attributes["days"] = "Tonight"
+                                self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
+                                self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
+                                return
+
                     for alarm in routine["alarms"]:
                         if alarm["alarmId"] == alarm_id:
                             self._attr_extra_state_attributes["time"] = alarm["timeWithOffset"]["time"]
                             self._attr_extra_state_attributes["days"] = routine["days"]
                             self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
                             self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
-            else:
-                self._attr_extra_state_attributes["time"] = None
-                self._attr_extra_state_attributes["days"] = None
-                self._attr_extra_state_attributes["thermal"] = None
-                self._attr_extra_state_attributes["vibration"] = None
+                            return
+
+        self._attr_extra_state_attributes.pop("time", None)
+        self._attr_extra_state_attributes.pop("days", None)
+        self._attr_extra_state_attributes.pop("thermal", None)
+        self._attr_extra_state_attributes.pop("vibration", None)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._user_obj:
