@@ -29,7 +29,7 @@ The integration will function similarly to the previous Home Assistant core Eigh
 
 There are a few services you can use on the <..>_bed_temperature entities:
 - **Heat Set**
-  - Sets heating/cooling level for a <..>_bed_temperature entity.
+  - Sets heating/cooling level for a <..>_bed_temperature entity. Can set the Current, Bedtime, Early, or Late temperature using the Sleep Stage selection.
 - **Heat Increment**
   - Increases/decreases the current heat level for a <..>_bed_temperature entity.
 - **Side Off**
@@ -107,7 +107,6 @@ These values are updated every minute.
 
 ### Alarms ###
 There are alarm switches that will be auto-configured for each alarm you have setup. 
-In order to modify/sync the alarms with the eight sleep app you will need to either reload the integration, or reboot Home Assistant.
 
 ![example_alarms.png](./images/examples/example_alarms.png)
 
