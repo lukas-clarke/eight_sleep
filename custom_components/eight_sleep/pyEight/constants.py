@@ -61,6 +61,10 @@ CURRENT_STATE_JSON = """
         }"""
 
 POSSIBLE_SLEEP_STAGES = ["bedTimeLevel", "initialSleepLevel", "finalSleepLevel"]
+MIN_TEMP_F = 55
+MAX_TEMP_F = 110
+MIN_TEMP_C = 13
+MAX_TEMP_C = 44
 
 RAW_TO_CELSIUS_MAP = {
     -100: 13,
@@ -120,6 +124,7 @@ RAW_TO_FAHRENHEIT_MAP = {
     -31: 74,
     -26: 75,
     -21: 76,
+    -18: 77,
     -17: 77,
     -12: 78,
     -7: 79,
@@ -129,6 +134,7 @@ RAW_TO_FAHRENHEIT_MAP = {
     7: 83,
     10: 84,
     14: 85,
+    16: 86,
     17: 86,
     20: 87,
     23: 88,
@@ -150,6 +156,7 @@ RAW_TO_FAHRENHEIT_MAP = {
     72: 104,
     75: 105,
     78: 106,
+    80: 107,
     81: 107,
     85: 108,
     88: 109,

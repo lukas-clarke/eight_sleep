@@ -14,6 +14,7 @@ import statistics
 from typing import TYPE_CHECKING, Any
 
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
+from .util import heating_level_to_temp
 
 if TYPE_CHECKING:
     from .eight import EightSleep
@@ -656,14 +657,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.bed_state_type = await self.get_bed_state_type()
 
         current_side_temp_raw = await self.get_current_device_level()
-        self.current_side_temp = self.device.convert_raw_bed_temp_to_degrees(
-            current_side_temp_raw, "c"
-        )
+        self.current_side_temp = heating_level_to_temp(current_side_temp_raw, "c")
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
         else:
-            self.target_heating_temp = self.device.convert_raw_bed_temp_to_degrees(
+            self.target_heating_temp = heating_level_to_temp(
                 self.target_heating_level, "c"
             )
 
