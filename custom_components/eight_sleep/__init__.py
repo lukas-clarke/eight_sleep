@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from .pyEight.eight import EightSleep
@@ -336,7 +336,24 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         await self._generic_service_call(self._user_obj.prime_pod)
 
     async def async_set_bed_side(self, bed_side_state: str) -> None:
-        """Handle eight sleep set bide side state."""
+        """Handle eight sleep set bed side state."""
         await self._generic_service_call(
             lambda: self._user_obj.set_bed_side(bed_side_state)
         )
+
+    async def async_set_routine_alarm(
+        self, 
+        routine_id: str,
+        alarm_id: str,
+        alarm_time: str,
+    ) -> None:
+        """Handle eight sleep set routine alarm calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_routine_alarm(routine_id, alarm_id, alarm_time))
+
+    async def async_set_routine_bedtime(
+        self,
+        routine_id: str,
+        bedtime: str,
+    ) -> None:
+        """Handle eight sleep set routine bedtime calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_routine_bedtime(routine_id, bedtime))

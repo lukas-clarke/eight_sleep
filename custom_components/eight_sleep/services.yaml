@@ -113,3 +113,35 @@ set_bed_side:
               value: left
             - label: Right
               value: right
+set_routine_alarm:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    routine_id:
+      required: true
+      selector:
+        text:
+    alarm_id:
+      required: true
+      selector:
+        text:
+    alarm_time:
+      required: true
+      selector:
+        time:
+set_routine_bedtime:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    routine_id:
+      required: true
+      selector:
+        text:
+    bedtime:
+      required: true
+      selector:
+        time:
