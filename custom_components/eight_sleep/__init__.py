@@ -50,7 +50,7 @@ PLATFORMS = [
 ]
 
 DEVICE_SCAN_INTERVAL = timedelta(seconds=60)
-USER_SCAN_INTERVAL = timedelta(seconds=300)
+USER_SCAN_INTERVAL = timedelta(seconds=30)
 BASE_SCAN_INTERVAL = timedelta(seconds=60)
 
 CONFIG_SCHEMA = vol.Schema(
