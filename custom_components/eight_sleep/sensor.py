@@ -91,6 +91,7 @@ EIGHT_USER_SENSORS = [
     "presence_start",
     "presence_end",
     "side",
+    "routines",
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
@@ -327,6 +328,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.current_bed_temp
         if self._sensor == "sleep_stage":
             return self._user_obj.current_sleep_stage
+        if self._sensor == "routines":
+            return len(self._user_obj.routines) if self._user_obj.routines else 0
 
         return None
 
@@ -346,6 +349,38 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                 ATTR_ALARM_ID: self._user_obj.next_alarm_id,
             }
             return state_attr
+        elif self._sensor == "routines" and self._user_obj:
+            routines_data = []
+            for routine in self._user_obj.routines:
+                routine_info = {
+                    "id": routine["id"],
+                    "name": routine.get("name", "Unnamed Routine"),
+                    "days": routine.get("days", []),
+                    "alarms": []
+                }
+                
+                # Add alarms from the main routine
+                for alarm in routine.get("alarms", []):
+                    routine_info["alarms"].append({
+                        "id": alarm["alarmId"],
+                        "time": alarm["timeWithOffset"]["time"],
+                        "enabled": alarm["enabled"],
+                        "disabledIndividually": alarm.get("disabledIndividually", False)
+                    })
+                
+                # Add alarms from override if present
+                if "override" in routine:
+                    for alarm in routine["override"].get("alarms", []):
+                        routine_info["alarms"].append({
+                            "id": alarm["alarmId"],
+                            "time": alarm["time"],
+                            "enabled": alarm["enabled"],
+                            "disabledIndividually": not alarm["enabled"]
+                        })
+                
+                routines_data.append(routine_info)
+            
+            return {"routines": routines_data}
 
         if attr is None:
             # Skip attributes if sensor type doesn't support

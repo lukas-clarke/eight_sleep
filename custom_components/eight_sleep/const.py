@@ -53,6 +53,10 @@ NAME_MAP = {
         SensorDeviceClass.TEMPERATURE,
         SensorStateClass.MEASUREMENT
     ),
+    "routines": NameMapEntity(
+        "Routines",
+        state_class=None
+    ),
 }
 
 SERVICE_HEAT_SET = "heat_set"
