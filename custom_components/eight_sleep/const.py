@@ -68,6 +68,7 @@ SERVICE_ALARM_STOP = "alarm_stop"
 SERVICE_ALARM_DISMISS = "alarm_dismiss"
 SERVICE_AWAY_MODE_START = "away_mode_start"
 SERVICE_AWAY_MODE_STOP = "away_mode_stop"
+SERVICE_REFRESH_DATA = "refresh_data"
 
 ATTR_TARGET = "target"
 ATTR_DURATION = "duration"

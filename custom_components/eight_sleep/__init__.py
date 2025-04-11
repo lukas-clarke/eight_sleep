@@ -287,6 +287,15 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
                 lambda: self._user_obj.set_smart_heating_level(target, sleep_stage)
             )
 
+    async def async_refresh_data(self) -> None:
+        """Force refresh all data."""
+        config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
+            self._config_entry.entry_id
+        ]
+        await config_entry_data.device_coordinator.async_request_refresh()
+        await config_entry_data.user_coordinator.async_request_refresh()
+        await config_entry_data.base_coordinator.async_request_refresh()
+
     async def async_heat_increment(self, target: int) -> None:
         """Handle eight sleep heat increment calls."""
         await self._generic_service_call(

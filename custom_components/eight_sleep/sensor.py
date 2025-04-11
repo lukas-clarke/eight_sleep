@@ -44,6 +44,7 @@ from .const import (
     SERVICE_AWAY_MODE_START,
     SERVICE_AWAY_MODE_STOP,
     NAME_MAP,
+    SERVICE_REFRESH_DATA,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -208,6 +209,11 @@ async def async_setup_entry(
             "bed_side_state": vol.All(vol.Coerce(str)),
         },
         "async_set_bed_side",
+    )
+    platform.async_register_entity_service(
+        SERVICE_REFRESH_DATA,
+        {},
+        "async_refresh_data",
     )
 
 
