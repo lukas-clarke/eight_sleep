@@ -61,6 +61,7 @@ NAME_MAP = {
 
 SERVICE_HEAT_SET = "heat_set"
 SERVICE_HEAT_INCREMENT = "heat_increment"
+SERVICE_HEAT_DECREMENT = "heat_decrement"
 SERVICE_SIDE_OFF = "side_off"
 SERVICE_SIDE_ON = "side_on"
 SERVICE_ALARM_SNOOZE = "alarm_snooze"
@@ -69,6 +70,7 @@ SERVICE_ALARM_DISMISS = "alarm_dismiss"
 SERVICE_AWAY_MODE_START = "away_mode_start"
 SERVICE_AWAY_MODE_STOP = "away_mode_stop"
 SERVICE_REFRESH_DATA = "refresh_data"
+SERVICE_SET_ONE_OFF_ALARM = "set_one_off_alarm"
 
 ATTR_TARGET = "target"
 ATTR_DURATION = "duration"

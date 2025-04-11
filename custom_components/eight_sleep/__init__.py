@@ -366,3 +366,26 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     ) -> None:
         """Handle eight sleep set routine bedtime calls."""
         await self._generic_service_call(lambda: self._user_obj.set_routine_bedtime(routine_id, bedtime))
+
+    async def async_set_one_off_alarm(
+        self,
+        time: str,
+        enabled: bool = True,
+        vibration_enabled: bool = True,
+        vibration_power_level: int = 50,
+        vibration_pattern: str = "RISE",
+        thermal_enabled: bool = True,
+        thermal_level: int = 50,
+    ) -> None:
+        """Set a one-off alarm."""
+        await self._generic_service_call(
+            lambda: self._user_obj.set_one_off_alarm(
+                time=time,
+                enabled=enabled,
+                vibration_enabled=vibration_enabled,
+                vibration_power_level=vibration_power_level,
+                vibration_pattern=vibration_pattern,
+                thermal_enabled=thermal_enabled,
+                thermal_level=thermal_level,
+            )
+        )

@@ -45,6 +45,7 @@ from .const import (
     SERVICE_AWAY_MODE_STOP,
     NAME_MAP,
     SERVICE_REFRESH_DATA,
+    SERVICE_SET_ONE_OFF_ALARM,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -214,6 +215,25 @@ async def async_setup_entry(
         SERVICE_REFRESH_DATA,
         {},
         "async_refresh_data",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_ONE_OFF_ALARM,
+        {
+            vol.Required("time"): cv.time,
+            vol.Optional("enabled", default=True): cv.boolean,
+            vol.Optional("vibration_enabled", default=True): cv.boolean,
+            vol.Optional("vibration_power_level", default=50): vol.All(
+                vol.Coerce(int),
+                vol.In([20, 50, 100])
+            ),
+            vol.Optional("vibration_pattern", default="RISE"): vol.In(["RISE", "intense"]),
+            vol.Optional("thermal_enabled", default=True): cv.boolean,
+            vol.Optional("thermal_level", default=0): vol.All(
+                vol.Coerce(int),
+                vol.Range(min=-100, max=100)
+            ),
+        },
+        "async_set_one_off_alarm",
     )
 
 

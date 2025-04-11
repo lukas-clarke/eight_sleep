@@ -992,3 +992,37 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 "enableOfflineMode": False
             }
             await self.device.api_request("POST", url, data=payload, return_json=False)
+
+    async def set_one_off_alarm(
+        self,
+        time: str,
+        enabled: bool = True,
+        vibration_enabled: bool = True,
+        vibration_power_level: int = 50,
+        vibration_pattern: str = "RISE",
+        thermal_enabled: bool = True,
+        thermal_level: int = 50,
+    ) -> None:
+        """Set a one-off alarm."""
+        await self._api.put(
+            f"users/{self.user_id}/routines",
+            json={
+                "oneOffAlarms": [
+                    {
+                        "time": time,
+                        "enabled": enabled,
+                        "settings": {
+                            "vibration": {
+                                "enabled": vibration_enabled,
+                                "powerLevel": vibration_power_level,
+                                "pattern": vibration_pattern,
+                            },
+                            "thermal": {
+                                "enabled": thermal_enabled,
+                                "level": thermal_level,
+                            },
+                        },
+                    }
+                ]
+            },
+        )
