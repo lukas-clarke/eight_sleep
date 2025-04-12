@@ -1004,7 +1004,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         thermal_level: int = 0,
     ) -> None:
         """Set a one-off alarm."""
-        url = APP_API_URL + f"v2/users/{self.user_id}/routines"
+        url = APP_API_URL + f"v2/users/{self.user_id}/routines?ignoreDeviceErrors=false"
         data = {
             "oneOffAlarms": [
                 {
