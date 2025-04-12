@@ -22,6 +22,7 @@ from homeassistant.const import (
     CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import (
     AddEntitiesCallback,
     async_get_current_platform,
@@ -193,28 +194,10 @@ async def async_setup_entry(
         {},
         "async_start_away_mode",
     )
-    # The API currently doesn't have a stop for the away mode
     platform.async_register_entity_service(
         SERVICE_AWAY_MODE_STOP,
         {},
         "async_stop_away_mode",
-    )
-    platform.async_register_entity_service(
-        "prime_pod",
-        {},
-        "async_prime_pod",
-    )
-    platform.async_register_entity_service(
-        "set_bed_side",
-        {
-            "bed_side_state": vol.All(vol.Coerce(str)),
-        },
-        "async_set_bed_side",
-    )
-    platform.async_register_entity_service(
-        SERVICE_REFRESH_DATA,
-        {},
-        "async_refresh_data",
     )
     platform.async_register_entity_service(
         SERVICE_SET_ONE_OFF_ALARM,
@@ -234,6 +217,23 @@ async def async_setup_entry(
             ),
         },
         "async_set_one_off_alarm",
+    )
+    platform.async_register_entity_service(
+        "prime_pod",
+        {},
+        "async_prime_pod",
+    )
+    platform.async_register_entity_service(
+        "set_bed_side",
+        {
+            "bed_side_state": vol.All(vol.Coerce(str)),
+        },
+        "async_set_bed_side",
+    )
+    platform.async_register_entity_service(
+        SERVICE_REFRESH_DATA,
+        {},
+        "async_refresh_data",
     )
 
 
