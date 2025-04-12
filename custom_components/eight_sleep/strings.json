@@ -78,6 +78,40 @@
     "set_routine_bedtime": {
       "name": "Set Routine Bedtime",
       "description": "Change the bedtime for the given routine ID."
+    },
+    "set_one_off_alarm": {
+      "name": "Set One-off Alarm",
+      "description": "Sets a one-off alarm with custom vibration and thermal settings.",
+      "fields": {
+        "time": {
+          "name": "Time",
+          "description": "The time to set the alarm for (24-hour format)."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the alarm is enabled."
+        },
+        "vibration_enabled": {
+          "name": "Vibration Enabled",
+          "description": "Whether vibration is enabled for this alarm."
+        },
+        "vibration_power_level": {
+          "name": "Vibration Power Level",
+          "description": "The power level of vibration (20=low, 50=medium, 100=high)."
+        },
+        "vibration_pattern": {
+          "name": "Vibration Pattern",
+          "description": "The pattern of vibration (RISE or intense)."
+        },
+        "thermal_enabled": {
+          "name": "Thermal Enabled",
+          "description": "Whether thermal control is enabled for this alarm."
+        },
+        "thermal_level": {
+          "name": "Thermal Level",
+          "description": "The thermal level (-100=max cooling to +100=max heating)."
+        }
+      }
     }
   }
 }

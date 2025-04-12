@@ -1,100 +1,133 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Device is already configured",
-            "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
-        },
-        "error": {
-            "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "client_id": "Client Id",
-                    "client_secret": "Client Secret",
-                    "password": "Password",
-                    "username": "Username"
-                }
-            }
-        }
+  "config": {
+    "abort": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
     },
-    "services": {
-        "heat_set": {
-            "description": "Sets heating/cooling level for eight sleep.",
-            "fields": {
-                "duration": {
-                    "description": "Duration to heat/cool at the target level in seconds. This value is only used if the Sleep Stage is set to 'Set Current Temperature'",
-                    "name": "Duration"
-                },
-                "target": {
-                    "description": "Target cooling/heating level from -100 to 100.",
-                    "name": "Target Temperature"
-                },
-                "sleep_stage": {
-                    "description": "Select which sleep stage to set the temperature for.",
-                    "name": "Sleep Stage"
-                }
-            },
-            "name": "Heat set"
-        },
-        "heat_increment": {
-            "description": "Offsets the current heating/cooling level",
-            "fields": {
-                "target": {
-                    "description": "How much to offset the current heating/cooling level. From -100 to 100.",
-                    "name": "Increment"
-                }
-            },
-            "name": "Heat Increment"
-        },
-        "side_off": {
-            "description": "Turns off 8 sleep side.",
-            "name": "Side Off"
+    "error": {
+      "cannot_connect": "Cannot connect to Eight Sleep cloud: {error}"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "client_id": "Client Id",
+          "client_secret": "Client Secret",
+          "password": "Password",
+          "username": "Username"
         }
-        ,
-        "side_on": {
-            "description": "Turns on 8 sleep side in smart mode.",
-            "name": "Side On"
-        },
-        "alarm_snooze": {
-            "description": "Snooze alarm for the 8 sleep side.",
-            "fields": {
-                "duration": {
-                    "description": "Number of minutes to snooze alarm.",
-                    "name": "Duration"
-                }
-            },
-            "name": "Alarm Snooze"
-        },
-        "alarm_stop": {
-            "description": "Stops alarm for the 8 sleep side.",
-            "name": "Alarm Stop"
-        },
-        "alarm_dismiss": {
-            "description": "Dismisses an alarm for the 8 sleep side.",
-            "name": "Alarm Dismiss"
-        },
-        "away_mode_start": {
-            "description": "Turns on away mode for the 8 sleep side.",
-            "name": "Start Away Mode"
-        },
-        "away_mode_stop": {
-            "description": "Turns off away mode for the 8 sleep side.",
-            "name": "Stop Away Mode"
-        },
-        "prime_pod": {
-            "description": "Will start the pod priming.",
-            "name": "Prime Pod"
-        },
-        "set_bed_side": {
-            "name": "Set Bed Side",
-            "description": "Set the bed side for the targeted user. Options are Both, Left, or Right.",
-            "fields": {
-                "bed_side_state": {
-                    "description": "Which bed side(s) to assign to the user defined in the 'Targets' field",
-                    "name": "Bed Side State"
-                }
-            }
-        }
+      }
     }
+  },
+  "services": {
+    "heat_set": {
+      "description": "Sets heating/cooling level for eight sleep.",
+      "fields": {
+        "duration": {
+          "description": "Duration to heat/cool at the target level in seconds. This value is only used if the Sleep Stage is set to 'Set Current Temperature'",
+          "name": "Duration"
+        },
+        "target": {
+          "description": "Target cooling/heating level from -100 to 100.",
+          "name": "Target Temperature"
+        },
+        "sleep_stage": {
+          "description": "Select which sleep stage to set the temperature for.",
+          "name": "Sleep Stage"
+        }
+      },
+      "name": "Heat set"
+    },
+    "heat_increment": {
+      "description": "Offsets the current heating/cooling level",
+      "fields": {
+        "target": {
+          "description": "How much to offset the current heating/cooling level. From -100 to 100.",
+          "name": "Increment"
+        }
+      },
+      "name": "Heat Increment"
+    },
+    "side_off": {
+      "description": "Turns off 8 sleep side.",
+      "name": "Side Off"
+    },
+    "side_on": {
+      "description": "Turns on 8 sleep side in smart mode.",
+      "name": "Side On"
+    },
+    "alarm_snooze": {
+      "description": "Snooze alarm for the 8 sleep side.",
+      "fields": {
+        "duration": {
+          "description": "Number of minutes to snooze alarm.",
+          "name": "Duration"
+        }
+      },
+      "name": "Alarm Snooze"
+    },
+    "alarm_stop": {
+      "description": "Stops alarm for the 8 sleep side.",
+      "name": "Alarm Stop"
+    },
+    "alarm_dismiss": {
+      "description": "Dismisses an alarm for the 8 sleep side.",
+      "name": "Alarm Dismiss"
+    },
+    "away_mode_start": {
+      "description": "Turns on away mode for the 8 sleep side.",
+      "name": "Start Away Mode"
+    },
+    "away_mode_stop": {
+      "description": "Turns off away mode for the 8 sleep side.",
+      "name": "Stop Away Mode"
+    },
+    "prime_pod": {
+      "description": "Will start the pod priming.",
+      "name": "Prime Pod"
+    },
+    "set_bed_side": {
+      "name": "Set Bed Side",
+      "description": "Set the bed side for the targeted user. Options are Both, Left, or Right.",
+      "fields": {
+        "bed_side_state": {
+          "description": "Which bed side(s) to assign to the user defined in the 'Targets' field",
+          "name": "Bed Side State"
+        }
+      }
+    },
+    "set_one_off_alarm": {
+      "name": "Set One-off Alarm",
+      "description": "Sets a one-off alarm with custom vibration and thermal settings.",
+      "fields": {
+        "time": {
+          "name": "Time",
+          "description": "The time to set the alarm for (24-hour format)."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the alarm is enabled."
+        },
+        "vibration_enabled": {
+          "name": "Vibration Enabled",
+          "description": "Whether vibration is enabled for this alarm."
+        },
+        "vibration_power_level": {
+          "name": "Vibration Power Level",
+          "description": "The power level of vibration (20=low, 50=medium, 100=high)."
+        },
+        "vibration_pattern": {
+          "name": "Vibration Pattern",
+          "description": "The pattern of vibration (RISE or intense)."
+        },
+        "thermal_enabled": {
+          "name": "Thermal Enabled",
+          "description": "Whether thermal control is enabled for this alarm."
+        },
+        "thermal_level": {
+          "name": "Thermal Level",
+          "description": "The thermal level (-100=max cooling to +100=max heating)."
+        }
+      }
+    }
+  }
 }
