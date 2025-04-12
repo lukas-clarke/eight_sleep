@@ -375,7 +375,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         vibration_power_level: int = 50,
         vibration_pattern: str = "RISE",
         thermal_enabled: bool = True,
-        thermal_level: int = 50,
+        thermal_level: int = 0,
     ) -> None:
         """Set a one-off alarm."""
         await self._generic_service_call(

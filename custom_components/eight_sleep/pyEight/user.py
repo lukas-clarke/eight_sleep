@@ -1001,28 +1001,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
         vibration_power_level: int = 50,
         vibration_pattern: str = "RISE",
         thermal_enabled: bool = True,
-        thermal_level: int = 50,
+        thermal_level: int = 0,
     ) -> None:
         """Set a one-off alarm."""
-        await self._api.put(
-            f"users/{self.user_id}/routines",
-            json={
-                "oneOffAlarms": [
-                    {
-                        "time": time,
-                        "enabled": enabled,
-                        "settings": {
-                            "vibration": {
-                                "enabled": vibration_enabled,
-                                "powerLevel": vibration_power_level,
-                                "pattern": vibration_pattern,
-                            },
-                            "thermal": {
-                                "enabled": thermal_enabled,
-                                "level": thermal_level,
-                            },
+        url = APP_API_URL + f"v2/users/{self.user_id}/routines"
+        data = {
+            "oneOffAlarms": [
+                {
+                    "time": time,
+                    "enabled": enabled,
+                    "settings": {
+                        "vibration": {
+                            "enabled": vibration_enabled,
+                            "powerLevel": vibration_power_level,
+                            "pattern": vibration_pattern,
                         },
-                    }
-                ]
-            },
-        )
+                        "thermal": {
+                            "enabled": thermal_enabled,
+                            "level": thermal_level,
+                        },
+                    },
+                }
+            ]
+        }
+        await self.device.api_request("PUT", url, data=data)
