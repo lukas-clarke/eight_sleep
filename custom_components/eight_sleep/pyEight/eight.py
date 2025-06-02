@@ -211,9 +211,14 @@ class EightSleep:
             main_id = response.json()["userId"]
             return Token(access_token_str, expiration_seconds_int, main_id)
         else:
-            raise RequestError(
-                f"Auth request failed with status code: {response.status_code}"
-            )
+            error_message = f"Auth request failed with status code: {response.status_code}"
+            try:
+                error_details = response.json()
+                error_message += f" - Details: {error_details}"
+            except ValueError: # Not a JSON response
+                error_message += f" - Response: {response.text}"
+            _LOGGER.error(error_message) # Also log the error here
+            raise RequestError(error_message)
 
     @property
     async def token(self) -> Token:
@@ -314,6 +319,9 @@ class EightSleep:
             data = await self.api_request("get", url)
             side = data.get("user", {}).get("currentDevice", {}).get("side")
 
+            if side is None:
+                _LOGGER.warning(f"User with ID {user_id} has no 'side' information returned from API endpoint {url}. This user may not function correctly.")
+
             if user_id not in self.users:
                 user = self.users[user_id] = EightUser(self, user_id, side)
                 await user.update_user_profile()
@@ -360,37 +368,77 @@ class EightSleep:
         url: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
-        input_headers=None,
-        return_json=True,
+        input_headers: dict[str, Any] | None = None, # Explicitly type hint
+        return_json: bool = True,
+        _is_retry: bool = False
     ) -> Any:
-        """Make api request."""
-        if input_headers is not None:
-            headers = input_headers
-        else:
-            headers = DEFAULT_API_HEADERS
+        """Make api request with 401 retry."""
 
-        token = await self.token
-        headers.update({"authorization": f"Bearer {token.bearer_token}"})
+        current_headers: dict[str, Any] # Define type for current_headers
+        if input_headers is not None:
+            current_headers = input_headers
+        else:
+            current_headers = dict(DEFAULT_API_HEADERS) # Use a copy
+
+        # Ensure token is fresh and add to headers for this attempt
+        # self.token property handles its own refresh if expired before this call
+        token_data = await self.token # Renamed to avoid conflict with Token type hint
+        current_headers["authorization"] = f"Bearer {token_data.bearer_token}"
+
         try:
             assert self._api_session
             resp = await self._api_session.request(
                 method,
                 url,
-                headers=headers,
+                headers=current_headers,
                 params=params,
                 json=data,
                 timeout=CLIENT_TIMEOUT,
-                raise_for_status=True,
+                # No raise_for_status=True here for the first attempt
             )
-            if resp.status == 401:
-                # refresh token and try again if request in unauthorized
-                await self.refresh_token()
-                return await self.api_request(method, url, params, data, input_headers)
+
+            if resp.status == 401 and not _is_retry:
+                _LOGGER.info(
+                    f"Unauthorized (401) for {method.upper()} {url}. Refreshing token and retrying."
+                )
+                await self.refresh_token() # This should update self._token
+                # For the retry, we make a new call to api_request.
+                # It will pick up the new token when it calls self.token again.
+                return await self.api_request(
+                    method, url, params, data, input_headers, return_json, _is_retry=True
+                )
+
+            if resp.status >= 400:
+                # Handle HTTP errors for non-401 or for 401 on retry
+                error_message = f"API request {method.upper()} {url} failed with status {resp.status}"
+                try:
+                    error_details = await resp.json()
+                    error_message += f" - Details: {error_details}"
+                except Exception: # Catch broad errors like not being JSON
+                    try:
+                        error_text = await resp.text()
+                        error_message += f" - Response: {error_text}"
+                    except Exception as text_exc:
+                        error_message += f" - Failed to get response text: {text_exc}"
+                _LOGGER.error(error_message)
+                raise RequestError(error_message)
+
+            # Successful response
             if return_json:
                 return await resp.json()
-            else:
-                return None
+            return None
 
         except (ClientError, asyncio.TimeoutError, ConnectionRefusedError) as err:
-            _LOGGER.error(f"Error {method}ing Eight data. {err}s")
-            raise RequestError from err
+            # Catch network errors or errors from aiohttp if they occur
+            # Avoid re-wrapping if it's already a RequestError (e.g. from a failed retry that raised it)
+            if isinstance(err, RequestError):
+                raise
+
+            error_message = f"Network/Connection error during {method.upper()} request to {url}: {err}"
+            _LOGGER.error(error_message)
+            raise RequestError(error_message) from err
+        except Exception as e: # Catch any other unexpected error
+            if isinstance(e, RequestError): # Should have been caught by the previous block if it was a ClientError
+                raise
+            _LOGGER.error(f"Unexpected error during API request to {url}: {e}", exc_info=True)
+            raise RequestError(f"Unexpected error during API request to {url}: {e}") from e

@@ -1,11 +1,14 @@
 """Exceptions for eight sleep."""
 
 
+from homeassistant.exceptions import HomeAssistantError
+
+
 class BaseEightSleepError(Exception):
     """Base exception for eight sleep."""
 
 
-class RequestError(BaseEightSleepError):
+class RequestError(HomeAssistantError):
     """Exception for eight sleep request failures."""
 
 

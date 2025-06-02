@@ -87,21 +87,31 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
         super().__init__(entry, coordinator, eight, user, sensor)
         self._attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
         # device data seems to be more up-to-date than user data
-        heating_level = self._eight.device_data.get(f"{user.side}TargetHeatingLevel")
+        heating_level_key = f"{user.corrected_side_for_key}TargetHeatingLevel"
+        heating_level = self._eight.device_data.get(heating_level_key)
         if heating_level is not None:
-            unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-            self._attr_target_temperature = heating_level_to_temp(heating_level, unit)
+            try:
+                # Ensure heating_level is treated as a number, pyEight.util.heating_level_to_temp can handle numeric types.
+                numeric_heating_level = float(heating_level) # Or int() if API guarantees integers
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                self._attr_target_temperature = heating_level_to_temp(numeric_heating_level, unit)
+            except ValueError:
+                _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
 
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
         # device data seems to be more up-to-date than user data
-        heating_level = self._eight.device_data.get(
-            f"{self._user_obj.side}HeatingLevel"
-        )
+        heating_level_key = f"{self._user_obj.corrected_side_for_key}HeatingLevel"
+        heating_level = self._eight.device_data.get(heating_level_key)
         if heating_level is not None:
-            unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-            return heating_level_to_temp(heating_level, unit)
+            try:
+                numeric_heating_level = float(heating_level)
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                return heating_level_to_temp(numeric_heating_level, unit)
+            except ValueError:
+                _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
+                return None
         return None
 
     @property
@@ -131,12 +141,16 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
         # Convert from Celsius to Fahrenheit
-        raw_target_temp = self._eight.device_data.get(
-            f"{self._user_obj.side}TargetHeatingLevel"
-        )
+        heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
+        raw_target_temp = self._eight.device_data.get(heating_level_key)
         if raw_target_temp is not None:
-            unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-            return heating_level_to_temp(raw_target_temp, unit)
+            try:
+                numeric_raw_target_temp = float(raw_target_temp)
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                return heating_level_to_temp(numeric_raw_target_temp, unit)
+            except ValueError:
+                _LOGGER.warning(f"Could not convert target heating level '{raw_target_temp}' to a number for key {heating_level_key}")
+                # Fall through to return self._attr_target_temperature
         return self._attr_target_temperature
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:

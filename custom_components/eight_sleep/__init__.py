@@ -321,13 +321,17 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         self,
     ) -> None:
         """Handle eight sleep start away mode calls."""
+        _LOGGER.debug(f"Attempting to start away mode for user {self._user_obj.user_id}")
         await self._generic_service_call(lambda: self._user_obj.set_away_mode("start"))
+        _LOGGER.debug(f"Successfully called start away mode for user {self._user_obj.user_id}")
 
     async def async_stop_away_mode(
         self,
     ) -> None:
-        """Handle eight sleep start away mode calls."""
+        """Handle eight sleep stop away mode calls."""
+        _LOGGER.debug(f"Attempting to stop away mode for user {self._user_obj.user_id}")
         await self._generic_service_call(lambda: self._user_obj.set_away_mode("end"))
+        _LOGGER.debug(f"Successfully called stop away mode for user {self._user_obj.user_id}")
 
     async def async_prime_pod(
         self,
@@ -336,7 +340,9 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         await self._generic_service_call(self._user_obj.prime_pod)
 
     async def async_set_bed_side(self, bed_side_state: str) -> None:
-        """Handle eight sleep set bide side state."""
+        """Handle eight sleep set bed side state."""
+        _LOGGER.debug(f"Attempting to set bed side to '{bed_side_state}' for user {self._user_obj.user_id}")
         await self._generic_service_call(
             lambda: self._user_obj.set_bed_side(bed_side_state)
         )
+        _LOGGER.debug(f"Successfully called set bed side to '{bed_side_state}' for user {self._user_obj.user_id}")
