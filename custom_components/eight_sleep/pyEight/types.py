@@ -2,4 +2,4 @@
 
 from typing import Literal
 
-type UnitOfTemperature = Literal["c", "f"]
+UnitOfTemperature = Literal["c", "f"]

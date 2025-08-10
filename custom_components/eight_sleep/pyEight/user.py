@@ -44,13 +44,31 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Get trend value for specified key."""
         if len(self.trends) < trend_num + 1:
             return None
-        data = self.trends[-(trend_num + 1)]
+        data_source = self.trends[-(trend_num + 1)] # Use a different variable name to avoid confusion
         if isinstance(keys, str):
-            return data.get(keys)
-        if self.trends:
-            for key in keys[:-1]:
-                data = data.get(key, {})
-        return data.get(keys[-1])
+            value = data_source.get(keys)
+            return None if value == "None" else value
+
+        # Traverse the keys
+        current_data = data_source
+        for key in keys[:-1]:
+            if not isinstance(current_data, dict): # Ensure current_data is a dict before .get
+                return None
+            current_data = current_data.get(key)
+            if current_data is None: # Stop if any intermediate key is missing
+                return None
+            # If an intermediate key's value is "None" string, treat as actual None for traversal
+            if current_data == "None":
+                return None
+
+        if not isinstance(current_data, dict): # Final check before the last .get
+            # If current_data itself became "None" string and was the target (e.g. keys has only one element after initial data_source)
+            # This case should be handled by the loop's "if current_data == "None":" check if keys has more than one element.
+            # If keys had only one element, this path isn't taken.
+            # However, if the expected structure is dict but we got "None" string, it should be None.
+            return None
+        value = current_data.get(keys[-1])
+        return None if value == "None" else value
 
     def _get_quality_score(self, trend_num: int, key: str) -> Any:
         """Get quality score for specified key."""
@@ -235,6 +253,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     @property
     def corrected_side_for_key(self) -> str:
+        if self.side is None:
+            _LOGGER.warning(f"User {self.user_id} has no side information; defaulting to 'left' for key access. This might lead to unexpected behavior.")
+            return "left" # Defaulting to 'left' as a fallback
         if self.side.lower() == "solo":
             return "left"
         else:
@@ -657,7 +678,10 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.bed_state_type = await self.get_bed_state_type()
 
         current_side_temp_raw = await self.get_current_device_level()
-        self.current_side_temp = heating_level_to_temp(current_side_temp_raw, "c")
+        if current_side_temp_raw is not None:
+            self.current_side_temp = heating_level_to_temp(current_side_temp_raw, "c")
+        else:
+            self.current_side_temp = None
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
@@ -672,7 +696,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
             raise Exception(f"Invalid side parameter passed in: {side}")
         url = CLIENT_API_URL + f"/users/{self.user_id}/current-device"
         data = {"id": str(self.device.device_id), "side": side}
+        _LOGGER.debug(f"User {self.user_id}: Setting bed side to '{side}' with payload {data}")
         await self.device.api_request("PUT", url, data=data, return_json=False)
+        _LOGGER.debug(f"User {self.user_id}: Successfully set bed side to '{side}'")
 
     async def get_bed_state_type(self) -> str:
         """Gets the bed state."""
@@ -732,10 +758,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
         resp = await self.device.api_request("GET", url)
         return int(resp["currentLevel"])
 
-    async def get_current_device_level(self) -> int:
+    async def get_current_device_level(self) -> int | None: # Return type can be None
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
-        resp = await self.device.api_request("GET", url)
-        return int(resp.get("currentDeviceLevel", 0))
+        try:
+            resp = await self.device.api_request("GET", url)
+            if resp and isinstance(resp, dict):
+                level = resp.get("currentDeviceLevel")
+                if level is not None:
+                    return int(level)
+            _LOGGER.debug(f"Could not determine current device level for user {self.user_id} from response: {resp}")
+            return None # Return None if data is not as expected
+        except ValueError as e: # Handles int() conversion error
+            _LOGGER.warning(f"ValueError converting current device level for user {self.user_id}: {e} - Response: {resp}")
+            return None
+        # RequestError will be raised by api_request if the call itself fails
 
     async def prime_pod(self):
         url = APP_API_URL + f"v1/devices/{self.device.device_id}/priming/tasks"
@@ -853,7 +889,9 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if action != "start" and action != "end":
             raise Exception(f"Invalid action: {action}")
         data = {"awayPeriod": {action: now}}
+        _LOGGER.debug(f"User {self.user_id}: Setting away mode action '{action}' with payload {data}")
         await self.device.api_request("PUT", url, data=data)
+        _LOGGER.debug(f"User {self.user_id}: Successfully set away mode action '{action}'")
 
     async def update_user_profile(self) -> None:
         """Update user profile data."""
