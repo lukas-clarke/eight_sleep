@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 
 from .pyEight.eight import EightSleep
@@ -266,7 +266,8 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     async def _generic_service_call(self, service_method):
         if self._user_obj is None:
             raise HomeAssistantError(
-                "This entity does not support the service call. Ensure you have a target <xxx>_bed_temperature entity set as the target."
+                "This entity does not support the service call. "
+                "Ensure you have a target <xxx>_bed_temperature entity set as the target."
             )
         await service_method()
         config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
@@ -351,7 +352,7 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         )
 
     async def async_set_routine_alarm(
-        self, 
+        self,
         routine_id: str,
         alarm_id: str,
         alarm_time: str,

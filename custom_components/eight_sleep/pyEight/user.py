@@ -123,7 +123,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 id = self.next_alarm_id
             else:
                 return False
-        
+
         # There are two fields that represent the state of an alarm:
         #
         # "enabled" represents whether the alarm will be active next time.
@@ -143,7 +143,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
                     return alarm["enabled"] if check_next_alarm else not alarm["disabledIndividually"]
 
         raise Exception(f"Alarm with ID {id} not found")
-    
+
     def _get_next_alarm_routine_id(self) -> str:
         for routine in self.routines:
             if "override" in routine:
@@ -154,7 +154,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
             for alarm in routine["alarms"]:
                 if alarm["alarmId"] == self.next_alarm_id:
                     return routine["id"]
-                
+
         raise Exception(f"Alarm with ID {self.next_alarm_id} not found")
 
     @property
@@ -779,22 +779,18 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def set_alarm_enabled(self, routine_id: str | None, alarm_id: str | None, enabled: bool) -> None:
         """Enables or disables the alarm.
         If no ID is specified, the next alarm will be used."""
-        
         if routine_id and alarm_id:
             await self._set_alarm_enabled(routine_id, alarm_id, enabled)
             return
-        
         if self.next_alarm_id is None:
             # We don't do anything for now if there is no next alarm
             return
-        
         routine_id = self._get_next_alarm_routine_id()
         routine = self._get_routine(routine_id)
         # If there is already an override, toggle it
         if "override" in routine:
             await self._set_alarm_enabled(routine_id, self.next_alarm_id, enabled)
             return
-        
         # Otherwise create a new override
         for alarm in routine["alarms"]:
             if alarm["alarmId"] == self.next_alarm_id:
@@ -809,7 +805,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
                         "time": alarm["timeWithOffset"]["time"],
                     }],
                 }
-                await self.device.api_request("PUT", f"{APP_API_URL}v2/users/{self.user_id}/routines/{routine_id}", data=routine)
+                await self.device.api_request(
+                    "PUT",
+                    f"{APP_API_URL}v2/users/{self.user_id}/routines/{routine_id}",
+                    data=routine
+                )
                 return
 
     async def _set_alarm_enabled(self, routine_id: str, alarm_id: str, enabled: bool) -> None:
@@ -892,7 +892,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
         if not nextTimestamp:
             self.next_alarm = None
             self.next_alarm_id = None
-            
             # Check if there is an upcoming routine with an alarm (which is currently disabled)
             if "upcomingRoutineId" in resp["state"]:
                 upcoming_routine = self._get_routine(resp["state"]["upcomingRoutineId"])
@@ -904,7 +903,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         else:
             self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
             self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
-    
+
     async def set_routine_alarm(self, routine_id: str, alarm_id: str, alarm_time: str) -> None:
         """Set an alarm from a routine."""
         await self.update_routines_data()

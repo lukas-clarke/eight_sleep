@@ -168,16 +168,16 @@ set_one_off_alarm:
         boolean:
     vibration_power_level:
       required: false
-      default: 50
+      default: "50"
       selector:
         select:
           options:
             - label: "Low"
-              value: 20
+              value: "20"
             - label: "Medium"
-              value: 50
+              value: "50"
             - label: "High"
-              value: 100
+              value: "100"
     vibration_pattern:
       required: false
       default: "RISE"

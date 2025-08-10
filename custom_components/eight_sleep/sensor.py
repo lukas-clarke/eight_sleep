@@ -384,7 +384,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                     "days": routine.get("days", []),
                     "alarms": []
                 }
-                
                 # Add alarms from the main routine
                 for alarm in routine.get("alarms", []):
                     routine_info["alarms"].append({
@@ -393,7 +392,6 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                         "enabled": alarm["enabled"],
                         "disabledIndividually": alarm.get("disabledIndividually", False)
                     })
-                
                 # Add alarms from override if present
                 if "override" in routine:
                     for alarm in routine["override"].get("alarms", []):
@@ -403,9 +401,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                             "enabled": alarm["enabled"],
                             "disabledIndividually": not alarm["enabled"]
                         })
-                
                 routines_data.append(routine_info)
-            
             return {"routines": routines_data}
 
         if attr is None:
