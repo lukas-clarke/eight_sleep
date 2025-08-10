@@ -113,3 +113,91 @@ set_bed_side:
               value: left
             - label: Right
               value: right
+set_routine_alarm:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    routine_id:
+      required: true
+      selector:
+        text:
+    alarm_id:
+      required: true
+      selector:
+        text:
+    alarm_time:
+      required: true
+      selector:
+        time:
+set_routine_bedtime:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    routine_id:
+      required: true
+      selector:
+        text:
+    bedtime:
+      required: true
+      selector:
+        time:
+
+set_one_off_alarm:
+  target:
+    entity:
+      integration: eight_sleep
+      domain: sensor
+  fields:
+    time:
+      required: true
+      selector:
+        time:
+    enabled:
+      required: false
+      default: true
+      selector:
+        boolean:
+    vibration_enabled:
+      required: false
+      default: true
+      selector:
+        boolean:
+    vibration_power_level:
+      required: false
+      default: "50"
+      selector:
+        select:
+          options:
+            - label: "Low"
+              value: "20"
+            - label: "Medium"
+              value: "50"
+            - label: "High"
+              value: "100"
+    vibration_pattern:
+      required: false
+      default: "RISE"
+      selector:
+        select:
+          options:
+            - label: "Rise"
+              value: "RISE"
+            - label: "Intense"
+              value: "intense"
+    thermal_enabled:
+      required: false
+      default: true
+      selector:
+        boolean:
+    thermal_level:
+      required: false
+      default: 0
+      selector:
+        number:
+          min: -100
+          max: 100
+          unit_of_measurement: "°"

@@ -6,7 +6,7 @@ from .types import UnitOfTemperature
 
 def heating_level_to_temp(heating_level: int, degree_unit: UnitOfTemperature) -> int:
     """Convert heating level (-100 to 100) to degrees.
-    
+
     The Eight Sleep app does not use an algebraic formula to convert the heating level, so we use a lookup table.
     """
     temp_map = (
@@ -26,7 +26,7 @@ def heating_level_to_temp(heating_level: int, degree_unit: UnitOfTemperature) ->
 
 def temp_to_heating_level(degrees: int, degree_unit: UnitOfTemperature) -> int:
     """Convert degrees to heating level (-100 to 100).
-    
+
     The Eight Sleep app does not use an algebraic formula to convert the heating level, so we use a lookup table.
     """
     temp_map = (

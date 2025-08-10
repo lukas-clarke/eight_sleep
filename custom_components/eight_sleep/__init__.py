@@ -50,7 +50,7 @@ PLATFORMS = [
 ]
 
 DEVICE_SCAN_INTERVAL = timedelta(seconds=60)
-USER_SCAN_INTERVAL = timedelta(seconds=300)
+USER_SCAN_INTERVAL = timedelta(seconds=30)
 BASE_SCAN_INTERVAL = timedelta(seconds=60)
 
 CONFIG_SCHEMA = vol.Schema(
@@ -266,7 +266,8 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
     async def _generic_service_call(self, service_method):
         if self._user_obj is None:
             raise HomeAssistantError(
-                "This entity does not support the service call. Ensure you have a target <xxx>_bed_temperature entity set as the target."
+                "This entity does not support the service call. "
+                "Ensure you have a target <xxx>_bed_temperature entity set as the target."
             )
         await service_method()
         config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
@@ -286,6 +287,15 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
             await self._generic_service_call(
                 lambda: self._user_obj.set_smart_heating_level(target, sleep_stage)
             )
+
+    async def async_refresh_data(self) -> None:
+        """Force refresh all data."""
+        config_entry_data: EightSleepConfigEntryData = self.hass.data[DOMAIN][
+            self._config_entry.entry_id
+        ]
+        await config_entry_data.device_coordinator.async_request_refresh()
+        await config_entry_data.user_coordinator.async_request_refresh()
+        await config_entry_data.base_coordinator.async_request_refresh()
 
     async def async_heat_increment(self, target: int) -> None:
         """Handle eight sleep heat increment calls."""
@@ -336,7 +346,47 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         await self._generic_service_call(self._user_obj.prime_pod)
 
     async def async_set_bed_side(self, bed_side_state: str) -> None:
-        """Handle eight sleep set bide side state."""
+        """Handle eight sleep set bed side state."""
         await self._generic_service_call(
             lambda: self._user_obj.set_bed_side(bed_side_state)
+        )
+
+    async def async_set_routine_alarm(
+        self,
+        routine_id: str,
+        alarm_id: str,
+        alarm_time: str,
+    ) -> None:
+        """Handle eight sleep set routine alarm calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_routine_alarm(routine_id, alarm_id, alarm_time))
+
+    async def async_set_routine_bedtime(
+        self,
+        routine_id: str,
+        bedtime: str,
+    ) -> None:
+        """Handle eight sleep set routine bedtime calls."""
+        await self._generic_service_call(lambda: self._user_obj.set_routine_bedtime(routine_id, bedtime))
+
+    async def async_set_one_off_alarm(
+        self,
+        time: str,
+        enabled: bool = True,
+        vibration_enabled: bool = True,
+        vibration_power_level: int = 50,
+        vibration_pattern: str = "RISE",
+        thermal_enabled: bool = True,
+        thermal_level: int = 0,
+    ) -> None:
+        """Set a one-off alarm."""
+        await self._generic_service_call(
+            lambda: self._user_obj.set_one_off_alarm(
+                time=time,
+                enabled=enabled,
+                vibration_enabled=vibration_enabled,
+                vibration_power_level=vibration_power_level,
+                vibration_pattern=vibration_pattern,
+                thermal_enabled=thermal_enabled,
+                thermal_level=thermal_level,
+            )
         )
