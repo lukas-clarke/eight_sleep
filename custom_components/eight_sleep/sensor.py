@@ -22,6 +22,7 @@ from homeassistant.const import (
     CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import (
     AddEntitiesCallback,
     async_get_current_platform,
@@ -44,6 +45,8 @@ from .const import (
     SERVICE_AWAY_MODE_START,
     SERVICE_AWAY_MODE_STOP,
     NAME_MAP,
+    SERVICE_REFRESH_DATA,
+    SERVICE_SET_ONE_OFF_ALARM,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -91,6 +94,7 @@ EIGHT_USER_SENSORS = [
     "presence_start",
     "presence_end",
     "side",
+    "routines",
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
@@ -190,11 +194,29 @@ async def async_setup_entry(
         {},
         "async_start_away_mode",
     )
-    # The API currently doesn't have a stop for the away mode
     platform.async_register_entity_service(
         SERVICE_AWAY_MODE_STOP,
         {},
         "async_stop_away_mode",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_ONE_OFF_ALARM,
+        {
+            vol.Required("time"): cv.time,
+            vol.Optional("enabled", default=True): cv.boolean,
+            vol.Optional("vibration_enabled", default=True): cv.boolean,
+            vol.Optional("vibration_power_level", default=50): vol.All(
+                vol.Coerce(int),
+                vol.In([20, 50, 100])
+            ),
+            vol.Optional("vibration_pattern", default="RISE"): vol.In(["RISE", "intense"]),
+            vol.Optional("thermal_enabled", default=True): cv.boolean,
+            vol.Optional("thermal_level", default=0): vol.All(
+                vol.Coerce(int),
+                vol.Range(min=-100, max=100)
+            ),
+        },
+        "async_set_one_off_alarm",
     )
     platform.async_register_entity_service(
         "prime_pod",
@@ -207,6 +229,11 @@ async def async_setup_entry(
             "bed_side_state": vol.All(vol.Coerce(str)),
         },
         "async_set_bed_side",
+    )
+    platform.async_register_entity_service(
+        SERVICE_REFRESH_DATA,
+        {},
+        "async_refresh_data",
     )
 
 
@@ -327,6 +354,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.current_bed_temp
         if self._sensor == "sleep_stage":
             return self._user_obj.current_sleep_stage
+        if self._sensor == "routines":
+            return len(self._user_obj.routines) if self._user_obj.routines else 0
 
         return None
 
@@ -346,6 +375,34 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                 ATTR_ALARM_ID: self._user_obj.next_alarm_id,
             }
             return state_attr
+        elif self._sensor == "routines" and self._user_obj:
+            routines_data = []
+            for routine in self._user_obj.routines:
+                routine_info = {
+                    "id": routine["id"],
+                    "name": routine.get("name", "Unnamed Routine"),
+                    "days": routine.get("days", []),
+                    "alarms": []
+                }
+                # Add alarms from the main routine
+                for alarm in routine.get("alarms", []):
+                    routine_info["alarms"].append({
+                        "id": alarm["alarmId"],
+                        "time": alarm["timeWithOffset"]["time"],
+                        "enabled": alarm["enabled"],
+                        "disabledIndividually": alarm.get("disabledIndividually", False)
+                    })
+                # Add alarms from override if present
+                if "override" in routine:
+                    for alarm in routine["override"].get("alarms", []):
+                        routine_info["alarms"].append({
+                            "id": alarm["alarmId"],
+                            "time": alarm["time"],
+                            "enabled": alarm["enabled"],
+                            "disabledIndividually": not alarm["enabled"]
+                        })
+                routines_data.append(routine_info)
+            return {"routines": routines_data}
 
         if attr is None:
             # Skip attributes if sensor type doesn't support

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from custom_components.eight_sleep.pyEight.user import EightUser
 
@@ -43,10 +43,9 @@ async def async_setup_entry(
                     routine["id"]))
 
                 alarm_index += 1
-        
         description = SwitchEntityDescription(
-            key=f"next_alarm",
-            name=f"Next Alarm",
+            key="next_alarm",
+            name="Next Alarm",
             icon="mdi:alarm",
         )
 
