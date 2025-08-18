@@ -28,7 +28,7 @@ from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.httpx_client import get_async_client
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.device_registry import async_get
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import UNDEFINED, ConfigType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
@@ -170,7 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # No users, cannot continue
         return False
 
-    dev_reg = async_get(hass)
+    dev_reg = await dr.async_get_registry(hass)
     assert eight.device_data
     device_data = {
         ATTR_MANUFACTURER: "Eight Sleep",
