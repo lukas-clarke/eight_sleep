@@ -65,8 +65,6 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
     _attr_has_entity_name = True
     _attr_name = "Climate"
     _attr_hvac_modes = [HVACMode.HEAT_COOL, HVACMode.OFF]
-    _attr_min_temp = MIN_TEMP_F
-    _attr_max_temp = MAX_TEMP_F
     _attr_target_temperature_step = TEMP_STEP
     _attr_supported_features = (
         ClimateEntityFeature.TURN_ON
@@ -85,7 +83,14 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
     ) -> None:
         """Initialize the thermostat."""
         super().__init__(entry, coordinator, eight, user, sensor)
-        self._attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
+        self._attr_temperature_unit = self.hass.config.units.temperature_unit
+        if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
+            self._attr_min_temp = MIN_TEMP_C
+            self._attr_max_temp = MAX_TEMP_C
+        else:
+            self._attr_min_temp = MIN_TEMP_F
+            self._attr_max_temp = MAX_TEMP_F
+
         # device data seems to be more up-to-date than user data
         heating_level_key = f"{user.corrected_side_for_key}TargetHeatingLevel"
         heating_level = self._eight.device_data.get(heating_level_key)
