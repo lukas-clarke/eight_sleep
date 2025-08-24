@@ -170,7 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # No users, cannot continue
         return False
 
-    dev_reg = await dr.async_get(hass)
+    dev_reg = dr.async_get(hass)
     assert eight.device_data
     device_data = {
         ATTR_MANUFACTURER: "Eight Sleep",
