@@ -52,6 +52,7 @@ async def async_setup_entry(
             eight,
             user,
             "climate",
+            hass,
         )
         for user in eight.users.values()
     ]
@@ -80,10 +81,12 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
         eight: EightSleep,
         user: EightUser,
         sensor: str,
+        hass: HomeAssistant,
     ) -> None:
         """Initialize the thermostat."""
         super().__init__(entry, coordinator, eight, user, sensor)
-        self._attr_temperature_unit = self.hass.config.units.temperature_unit
+        # Set temperature unit and ranges based on Home Assistant config
+        self._attr_temperature_unit = hass.config.units.temperature_unit
         if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
             self._attr_min_temp = MIN_TEMP_C
             self._attr_max_temp = MAX_TEMP_C

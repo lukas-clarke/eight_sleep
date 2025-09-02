@@ -333,16 +333,20 @@ class EightSleep:
         tmp = None
         tmp2 = None
         for user in self.users.values():
+            current_temp = user.current_room_temp
+            if current_temp is None:
+                continue  # Skip users with no temperature data
+            
             if user.current_session_processing:
                 if tmp is None:
-                    tmp = user.current_room_temp
+                    tmp = current_temp
                 else:
-                    tmp = (tmp + user.current_room_temp) / 2
+                    tmp = (tmp + current_temp) / 2
             else:
                 if tmp2 is None:
-                    tmp2 = user.current_room_temp
+                    tmp2 = current_temp
                 else:
-                    tmp2 = (tmp2 + user.current_room_temp) / 2
+                    tmp2 = (tmp2 + current_temp) / 2
 
         if tmp is not None:
             return tmp
