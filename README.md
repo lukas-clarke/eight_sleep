@@ -50,6 +50,24 @@ There are a few services you can use on the <..>_bed_temperature entities:
   - Will start the bed priming. Input entity must be a <..>_bed_temperature entity. The user side that calls this service is the one that will be notified when it is finished.
 - **Set Bed Side**
   - Will set the bed side for the user selected by the <..>_bed_temperature entity as the target. The options are "Both", "Left", or "Right". While the app has an option to set "Away" for the bed side, the API call does not work like that. If you would like to set away status, use the "Start Away Mode" or "Stop Away Mode" service calls.
+- **Set One-Off Alarm** 
+  - Create or update a single, one-time alarm for the selected side. Parameters:
+    - `time` (required, HH:MM:SS)
+    - `enabled` (optional, default: true)
+    - `vibration_enabled` (optional, default: true)
+    - `vibration_power_level` (optional, one of 20|50|100, default: 50)
+    - `vibration_pattern` (optional, one of RISE|intense, default: RISE)
+    - `thermal_enabled` (optional, default: true)
+    - `thermal_level` (optional, -100 to 100, default: 0)
+- **Set Routine Alarm** 
+  - Update the time of an existing alarm in a routine. Parameters:
+    - `routine_id` (required)
+    - `alarm_id` (required)
+    - `alarm_time` (required, HH:MM:SS)
+- **Set Routine Bedtime** 
+  - Update the bedtime for a routine. Parameters:
+    - `routine_id` (required)
+    - `bedtime` (required, HH:MM:SS)
 
 <br>
 **Example Service Calls**
@@ -113,12 +131,56 @@ There are alarm switches that will be auto-configured for each alarm you have se
 Further information about the alarms are available under attributes:
 ![example_alarm_attributes.png](./images/examples/example_alarm_attributes.png)
 
+#### Alarm services 
+You can now manage alarms directly via services on your <..>_bed_temperature entity:
+- Set One-Off Alarm: create/update a single-use alarm.
+- Set Routine Alarm: change the time of an existing alarm in a routine.
+- Set Routine Bedtime: update a routine's bedtime.
+
+Finding IDs for routine/alarm services:
+- Use your `<..>_routines` sensor. Its attributes include a `routines` list with each routine `id`, name, days, and `alarms` (each alarm includes `id`, `time`, and `enabled`).
+- The `Next Alarm` sensor exposes the next `Alarm ID` in its attributes.
+
+Example: Set a one-off alarm at 06:45 with medium vibration and +20° thermal boost
+```yaml path=null start=null
+service: sensor.set_one_off_alarm
+target:
+  entity_id: sensor.left_bed_temperature
+data:
+  time: "06:45:00"
+  enabled: true
+  vibration_enabled: true
+  vibration_power_level: 50   # 20|50|100
+  vibration_pattern: RISE     # RISE|intense
+  thermal_enabled: true
+  thermal_level: 20           # -100..100
+```
+
+Example: Update a routine alarm time (routine and alarm IDs from the `<..>_routines` sensor)
+```yaml path=null start=null
+service: sensor.set_routine_alarm
+target:
+  entity_id: sensor.right_bed_temperature
+data:
+  routine_id: "d9f1a1e0-1234-5678-90ab-abcdef012345"
+  alarm_id: "a1b2c3d4"
+  alarm_time: "07:30:00"
+```
+
+Example: Update a routine bedtime
+```yaml path=null start=null
+service: sensor.set_routine_bedtime
+target:
+  entity_id: sensor.right_bed_temperature
+data:
+  routine_id: "d9f1a1e0-1234-5678-90ab-abcdef012345"
+  bedtime: "22:30:00"
+```
+
 
 ## TODO ##
 - Translate "Heat Set" and "Heat Increment" values to temperature values in degrees for easier use.
-- Add device actions, so they can be used instead of service calls.
-- Add local device functionality for jailbroken devices using the steps in https://github.com/bobobo1618/ninesleep
-- Add icons.json file
+- Add local device functionality for jailbroken devices using the steps in https://github.com/bobobo1618/ninesleep or https://github.com/throwaway31265/free-sleep
 
 ## FAQS ##
 - **Can I use this integration without an Eight Sleep subscription?**
