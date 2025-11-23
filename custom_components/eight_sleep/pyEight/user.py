@@ -34,6 +34,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.routines: list[dict[str, Any]] = []
+        self.one_off_alarms: list[dict[str, Any]] = []
         self.next_alarm = None
         self.next_alarm_id = None
         self.bed_state_type = None
@@ -132,6 +133,37 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         raise Exception(f"Routine with ID {id} not found")
 
+    def is_one_off_alarm(self, alarm_id: str) -> bool:
+        """Return true if the alarm ID is a one-off alarm."""
+        return any(alarm["alarmId"] == alarm_id for alarm in self.one_off_alarms)
+
+    def _get_one_off_alarm_update_payload(self, alarm_id: str, enabled: bool) -> dict[str, Any]:
+        """Generate the payload to update a one-off alarm."""
+        updated_alarms = []
+        found = False
+        for alarm in self.one_off_alarms:
+            if alarm["alarmId"] == alarm_id:
+                # Create a copy to modify
+                updated_alarm = alarm.copy()
+                updated_alarm["enabled"] = enabled
+                
+                # Ensure these fields are always present in the PUT request
+                if "dismissedUntil" not in updated_alarm:
+                    updated_alarm["dismissedUntil"] = "1970-01-01T00:00:00Z"
+                if "snoozedUntil" not in updated_alarm:
+                    updated_alarm["snoozedUntil"] = "1970-01-01T00:00:00Z"
+
+                updated_alarms.append(updated_alarm)
+                found = True
+            else:
+                updated_alarms.append(alarm.copy())
+
+        if not found:
+            raise Exception(f"One-off alarm with ID {alarm_id} not found")
+
+        # The API expects the full list of oneOffAlarms for a PUT
+        return {"oneOffAlarms": updated_alarms}
+
     def get_alarm_enabled(self, id: str | None) -> bool:
         """Get alarm enabled for the specified ID.
         If no ID is specified, the next alarm will be used."""
@@ -141,6 +173,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 id = self.next_alarm_id
             else:
                 return False
+
+        # NEW: Check one-off alarms first
+        for alarm in self.one_off_alarms:
+            if alarm["alarmId"] == id:
+                return alarm["enabled"]
 
         # There are two fields that represent the state of an alarm:
         #
@@ -160,7 +197,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 if alarm["alarmId"] == id:
                     return alarm["enabled"] if check_next_alarm else not alarm["disabledIndividually"]
 
-        raise Exception(f"Alarm with ID {id} not found")
+        _LOGGER.warning("Alarm with ID %s not found in one-off alarms or routines", id)
+        return False # Changed from raising Exception to returning False
 
     def _get_next_alarm_routine_id(self) -> str:
         for routine in self.routines:
@@ -815,21 +853,46 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def set_alarm_enabled(self, routine_id: str | None, alarm_id: str | None, enabled: bool) -> None:
         """Enables or disables the alarm.
         If no ID is specified, the next alarm will be used."""
+        
+        target_alarm_id = alarm_id
+        if target_alarm_id is None:
+            if self.next_alarm_id is None:
+                # No alarm ID provided and no next alarm is set
+                return
+            target_alarm_id = self.next_alarm_id
+            
+        # 1. Handle One-Off Alarms (Check if it's a known one-off alarm)
+        if self.is_one_off_alarm(target_alarm_id):
+            try:
+                url = APP_API_URL + f"v2/users/{self.user_id}/routines?ignoreDeviceErrors=false"
+                data = self._get_one_off_alarm_update_payload(target_alarm_id, enabled)
+                await self.device.api_request("PUT", url, data=data)
+                return
+            except Exception as e:
+                _LOGGER.error("Failed to update one-off alarm %s: %s", target_alarm_id, e)
+                # Continue below in case it's a routine alarm that was passed without routine_id
+
+        # 2. Handle Routine Alarms (Original Logic)
+        
         if routine_id and alarm_id:
             await self._set_alarm_enabled(routine_id, alarm_id, enabled)
             return
+
         if self.next_alarm_id is None:
-            # We don't do anything for now if there is no next alarm
             return
+
         routine_id = self._get_next_alarm_routine_id()
         routine = self._get_routine(routine_id)
         # If there is already an override, toggle it
         if "override" in routine:
-            await self._set_alarm_enabled(routine_id, self.next_alarm_id, enabled)
+            # target_alarm_id should be self.next_alarm_id here
+            await self._set_alarm_enabled(routine_id, target_alarm_id, enabled)
             return
+        
         # Otherwise create a new override
         for alarm in routine["alarms"]:
-            if alarm["alarmId"] == self.next_alarm_id:
+            if alarm["alarmId"] == target_alarm_id:
+                # Added alarmId to the new override alarm to match the API response structure
                 routine["override"] = {
                     "routineEnabled": True,
                     "alarms": [{
@@ -839,6 +902,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
                         "dismissUntil": alarm.get("dismissUntil"),
                         "snoozeUntil": alarm.get("snoozeUntil"),
                         "time": alarm["timeWithOffset"]["time"],
+                        "alarmId": target_alarm_id, # <--- Added missing alarmId
                     }],
                 }
                 await self.device.api_request(
@@ -917,31 +981,57 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.trends = trend_data.get("days", [])
 
     async def update_routines_data(self) -> None:
+        """Update user routine and alarm data."""
         url = APP_API_URL + f"v2/users/{self.user_id}/routines"
         resp = await self.device.api_request("GET", url)
 
-        self.routines = resp["settings"]["routines"]
+        if resp is None:
+            _LOGGER.error("Unable to fetch routine data for %s", self.user_id)
+            return
 
-        try:
-            nextTimestamp = resp["state"]["nextAlarm"]["nextTimestamp"]
-        except KeyError:
-            nextTimestamp = None
+        # Store routines and one-off alarms
+        self.routines = resp["settings"].get("routines", [])
+        self.one_off_alarms = resp["settings"].get("oneOffAlarms", [])
 
-        if not nextTimestamp:
-            self.next_alarm = None
-            self.next_alarm_id = None
-            # Check if there is an upcoming routine with an alarm (which is currently disabled)
-            if "upcomingRoutineId" in resp["state"]:
+        # Reset alarm state
+        self.next_alarm = None
+        self.next_alarm_id = None
+        
+        next_alarm_state = resp["state"].get("nextAlarm")
+        
+        if next_alarm_state:
+            # FIX: Always set the ID if the nextAlarm object is present
+            self.next_alarm_id = next_alarm_state.get("alarmId") 
+
+            if next_alarm_state.get("nextTimestamp"):
+                # Only set the actual timestamp if nextTimestamp is available and valid
+                try:
+                    self.next_alarm = self.device.convert_string_to_datetime(
+                        next_alarm_state["nextTimestamp"]
+                    )
+                except Exception as e:
+                    _LOGGER.error(
+                        "Failed to convert nextTimestamp '%s' to datetime for user %s: %s",
+                        next_alarm_state["nextTimestamp"],
+                        self.user_id,
+                        e,
+                    )
+            
+        # Check if there is an upcoming routine with an alarm (which is currently disabled)
+        if self.next_alarm_id is None and "upcomingRoutineId" in resp["state"]:
+            try:
                 upcoming_routine = self._get_routine(resp["state"]["upcomingRoutineId"])
                 if upcoming_routine.get("override"):
                     if upcoming_routine["override"].get("alarms"):
                         self.next_alarm_id = upcoming_routine["override"]["alarms"][0]["alarmId"]
                 elif upcoming_routine.get("alarms"):
                     self.next_alarm_id = upcoming_routine["alarms"][0]["alarmId"]
-        else:
-            self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
-            self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
-
+            except Exception:
+                _LOGGER.debug(
+                    "Failed to find upcoming routine %s for user %s",
+                    resp["state"]["upcomingRoutineId"],
+                    self.user_id,
+                )
     async def set_routine_alarm(self, routine_id: str, alarm_id: str, alarm_time: str) -> None:
         """Set an alarm from a routine."""
         await self.update_routines_data()
