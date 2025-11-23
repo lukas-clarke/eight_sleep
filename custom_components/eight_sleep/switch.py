@@ -24,11 +24,14 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
 
     for user in eight.users.values():
+        # 1. Routine Alarms
         alarm_index = 1
         for routine in user.routines:
             for alarm in routine["alarms"]:
+                # Key is unique (side_alarm_1)
                 description = SwitchEntityDescription(
                     key=f"alarm_{alarm_index}",
+                    # Name is simplified (e.g., "Alarm 1")
                     name=f"Alarm {alarm_index}",
                     icon="mdi:alarm",
                 )
@@ -43,21 +46,30 @@ async def async_setup_entry(
                     routine["id"]))
 
                 alarm_index += 1
-        description = SwitchEntityDescription(
-            key="next_alarm",
-            name="Next Alarm",
-            icon="mdi:alarm",
-        )
 
-        entities.append(EightSwitchEntity(
-            entry,
-            config_entry_data.user_coordinator,
-            eight,
-            user,
-            description))
+        # 2. One-Off Alarms
+        one_off_alarm_index = 1
+        for alarm in user.one_off_alarms:
+            # Key is unique (side_one_off_alarm_1)
+            description = SwitchEntityDescription(
+                key=f"one_off_alarm_{one_off_alarm_index}",
+                # Name is simplified (e.g., "One-Off Alarm 1")
+                name=f"One-Off Alarm {one_off_alarm_index}",
+                icon="mdi:alarm",
+            )
 
+            entities.append(EightSwitchEntity(
+                entry,
+                config_entry_data.user_coordinator,
+                eight,
+                user,
+                description,
+                alarm["alarmId"],
+                None)) # Pass None for routine_id
+
+            one_off_alarm_index += 1
+            
     async_add_entities(entities)
-
 
 class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
     """Representation of an Eight Sleep switch entity."""
@@ -79,42 +91,69 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
         self._attr_extra_state_attributes = {}
         self._update_attributes()
 
+    @callback
     def _update_attributes(self) -> None:
-        if self._user_obj:
-            self._attr_is_on = self._user_obj.get_alarm_enabled(self._alarm_id)
+        """Update the entity attributes."""
+        if not self._user_obj or not (alarm_id := self._alarm_id):
+            self._attr_is_on = False
+            self._attr_extra_state_attributes = {} # Clear attributes on fail
+            return
 
-            alarm_id = self._alarm_id or self._user_obj.next_alarm_id
-            if alarm_id:
-                for routine in self._user_obj.routines:
+        self._attr_extra_state_attributes = {}
+        
+        # 1. Check for One-Off Alarms
+        if self._routine_id is None:
+            for alarm in self._user_obj.one_off_alarms:
+                if alarm["alarmId"] == alarm_id:
+                    self._attr_is_on = alarm["enabled"] # Status check
+                    self._attr_extra_state_attributes["time"] = alarm.get("time")
+
+                    if settings := alarm.get("settings"):
+                        self._attr_extra_state_attributes["thermal"] = settings.get("thermal")
+                        self._attr_extra_state_attributes["vibration"] = settings.get("vibration")
+
+                    # CRITICAL FIX: Return immediately to prevent hitting the fallback logic
+                    return 
+        
+        # 2. Check for Routine Alarms (Original Logic)
+        else:
+            for routine in self._user_obj.routines:
+                if routine["id"] == self._routine_id:
+                    # Logic for routine overrides
                     if "override" in routine:
                         for alarm in routine["override"]["alarms"]:
                             if alarm["alarmId"] == alarm_id:
-                                self._attr_extra_state_attributes["time"] = alarm["time"]
-                                self._attr_extra_state_attributes["days"] = "Tonight"
+                                self._attr_is_on = alarm["enabled"]
+                                self._attr_extra_state_attributes["time"] = alarm["timeWithOffset"]["time"]
+                                self._attr_extra_state_attributes["days"] = routine["days"]
                                 self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
                                 self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
                                 return
 
+                    # Logic for regular routine alarms
                     for alarm in routine["alarms"]:
                         if alarm["alarmId"] == alarm_id:
+                            # Routine alarms are enabled if not disabled individually
+                            self._attr_is_on = not alarm["disabledIndividually"]
                             self._attr_extra_state_attributes["time"] = alarm["timeWithOffset"]["time"]
                             self._attr_extra_state_attributes["days"] = routine["days"]
                             self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
                             self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
                             return
 
-        self._attr_extra_state_attributes.pop("time", None)
-        self._attr_extra_state_attributes.pop("days", None)
-        self._attr_extra_state_attributes.pop("thermal", None)
-        self._attr_extra_state_attributes.pop("vibration", None)
+        # If not found in either list, clear the state/attributes
+        self._attr_is_on = False
+        self._attr_extra_state_attributes = {}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._user_obj:
+            # self._routine_id will be None for one-off alarms
             await self._user_obj.set_alarm_enabled(self._routine_id, self._alarm_id, True)
             await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         if self._user_obj:
+            # self._routine_id will be None for one-off alarms
             await self._user_obj.set_alarm_enabled(self._routine_id, self._alarm_id, False)
             await self.coordinator.async_request_refresh()
 
