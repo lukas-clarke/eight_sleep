@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from .exceptions import RequestError
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
+from .exceptions import RequestError
 from .util import heating_level_to_temp
 
 if TYPE_CHECKING:
@@ -40,6 +41,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.bed_state_type = None
         self.current_side_temp = None
         self.target_heating_temp = None
+        self._player_state: dict | None = None
+        self._audio_tracks: list[dict] = []
 
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
         """Get trend value for specified key."""
@@ -1069,3 +1072,47 @@ class EightUser:  # pylint: disable=too-many-public-methods
             ]
         }
         await self.device.api_request("PUT", url, data=data)
+
+    # Speaker methods
+    @property
+    def player_state(self) -> dict | None:
+        """Return current player state."""
+        return self._player_state
+
+    @property
+    def audio_tracks(self) -> list[dict]:
+        """Return available audio tracks."""
+        return self._audio_tracks
+
+    async def update_player_state(self) -> None:
+        """Update player state from API."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/audio/player"
+        try:
+            self._player_state = await self.device.api_request("get", url)
+        except RequestError as e:
+            _LOGGER.warning(f"Failed to get player state: {e}")
+            self._player_state = None
+
+    async def fetch_audio_tracks(self) -> None:
+        """Fetch available audio tracks."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/audio/tracks"
+        try:
+            response = await self.device.api_request("get", url)
+            self._audio_tracks = response.get("tracks", [])
+        except RequestError as e:
+            _LOGGER.warning(f"Failed to get audio tracks: {e}")
+
+    async def set_player_state(self, state: str) -> None:
+        """Set player state (Playing/Paused)."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/audio/player/state"
+        await self.device.api_request("put", url, data={"state": state})
+
+    async def set_player_volume(self, volume: int) -> None:
+        """Set player volume (0-100)."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/audio/player/volume"
+        await self.device.api_request("put", url, data={"volume": volume})
+
+    async def set_player_track(self, track_id: str, stop_criteria: str = "ManualStop") -> None:
+        """Set current track."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/audio/player/currentTrack"
+        await self.device.api_request("put", url, data={"id": track_id, "stopCriteria": stop_criteria})
