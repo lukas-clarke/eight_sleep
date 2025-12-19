@@ -13,6 +13,7 @@ import logging
 import statistics
 from typing import TYPE_CHECKING, Any
 
+from .exceptions import RequestError
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
 from .util import heating_level_to_temp
 
@@ -1083,8 +1084,14 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def update_base_data(self):
         """Update the data about the bed base."""
         if self.device.has_base:
-            url = f"{APP_API_URL}v1/users/{self.user_id}/base"
-            self._base_data = await self.device.api_request("GET", url)
+            try:
+                url = f"{APP_API_URL}v1/users/{self.user_id}/base"
+                self._base_data = await self.device.api_request("GET", url)
+            except RequestError:
+                _LOGGER.warning(
+                    "Unable to fetch base data for user %s. This is normal if the user is not paired to a base.",
+                    self.user_id,
+                )
 
     async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
         """Set the angles of the bed base."""
