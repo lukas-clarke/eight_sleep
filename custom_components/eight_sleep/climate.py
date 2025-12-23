@@ -148,7 +148,12 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        # Convert from Celsius to Fahrenheit
+        # If the device is OFF, show the last known user/autopilot target
+        # instead of the API's reported "0" (27C).
+        if self.hvac_mode == HVACMode.OFF:
+            return self._attr_target_temperature
+
+        # Otherwise, trust the API (which handles Autopilot changes)
         heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
         raw_target_temp = self._eight.device_data.get(heating_level_key)
         if raw_target_temp is not None:
@@ -161,6 +166,23 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
                 # Fall through to return self._attr_target_temperature
         return self._attr_target_temperature
 
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # When ON, sync the API's target temperature to our local storage
+        # so we persist Autopilot changes if the user turns the device off.
+        if self.hvac_mode != HVACMode.OFF:
+             # Logic to read current target from API and update _attr_target_temperature
+            heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
+            raw_target_temp = self._eight.device_data.get(heating_level_key)
+            if raw_target_temp is not None:
+                try:
+                    numeric_raw_target_temp = float(raw_target_temp)
+                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                    self._attr_target_temperature = heating_level_to_temp(numeric_raw_target_temp, unit)
+                except ValueError:
+                    pass
+        super()._handle_coordinator_update()
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode (heat_cool or off)."""
         if not self._user_obj:
@@ -170,6 +192,9 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
             await self._user_obj.turn_off_side()
         else:
             await self._user_obj.turn_on_side()
+            # Restore the target temperature if we have one
+            if self._attr_target_temperature is not None:
+                await self.async_set_temperature(temperature=self._attr_target_temperature)
 
         # Refresh state
         await self.coordinator.async_request_refresh()
