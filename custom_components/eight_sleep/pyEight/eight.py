@@ -28,6 +28,7 @@ from .constants import (
     AUTH_URL,
     DEFAULT_AUTH_HEADERS,
     CLIENT_API_URL,
+    APP_API_URL,
     DEFAULT_API_HEADERS,
     TOKEN_TIME_BUFFER_SECONDS,
     RAW_TO_CELSIUS_MAP,
@@ -79,6 +80,7 @@ class EightSleep:
         self._device_ids: list[str] = []
         self._is_pod: bool = False
         self._has_base: bool = False
+        self._has_speaker: bool = False
 
         # Setup 10 element list
         self._device_json_list: list[dict] = []
@@ -146,6 +148,18 @@ class EightSleep:
     def has_base(self) -> bool:
         """Return if device has a base."""
         return self._has_base
+
+    @property
+    def has_speaker(self) -> bool:
+        """Return if device has speaker capability."""
+        return self._has_speaker
+
+    @property
+    def speaker_user(self) -> EightUser | None:
+        """Return the user object for speaker API calls."""
+        if self.has_speaker:
+            return next(iter(self.users.values()))
+        return None
 
     def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
         """degree_unit can be 'c' or 'f'
@@ -259,6 +273,35 @@ class EightSleep:
         if self.has_base:
             return next(iter(self.users.values()))
 
+    async def _probe_speaker_availability(self) -> bool:
+        """Probe for speaker by attempting to get player state.
+
+        The Pod 5 bed platform (with speaker) can be purchased separately
+        and used with a Pod 4 hub, so we can't rely on model detection.
+        """
+        if not self.users:
+            return False
+
+        user = next(iter(self.users.values()))
+        url = f"{APP_API_URL}v1/users/{user.user_id}/audio/player"
+
+        try:
+            response = await self.api_request("get", url)
+            # If we get a response with hardwareInfo, speaker is available
+            if response and response.get("hardwareInfo"):
+                _LOGGER.debug(f"Speaker detected via probe: {response.get('hardwareInfo', {}).get('sku')}")
+                return True
+            return False
+        except RequestError as e:
+            _LOGGER.debug(f"Speaker probe failed (expected if no speaker): {e}")
+            return False
+
+    async def update_speaker_data(self) -> None:
+        """Update data for the speaker."""
+        user = self.speaker_user
+        if user:
+            await user.update_player_state()
+
     async def start(self) -> bool:
         """Start api initialization."""
         _LOGGER.debug("Initializing pyEight.")
@@ -269,6 +312,16 @@ class EightSleep:
         await self.token
         await self.fetch_device_list()
         await self.assign_users()
+
+        # If speaker not detected via feature flag, try probe-based detection
+        # This handles Pod 4 hub + Pod 5 bed platform combinations
+        if not self._has_speaker:
+            self._has_speaker = await self._probe_speaker_availability()
+
+        # Fetch audio tracks if speaker available
+        if self._has_speaker and self.speaker_user:
+            await self.speaker_user.fetch_audio_tracks()
+
         return True
 
     async def stop(self) -> None:
@@ -295,7 +348,10 @@ class EightSleep:
         if "elevation" in dlist["user"]["features"]:
             self._has_base = True
 
-        _LOGGER.debug(f"Devices: {self._device_ids}, Pod: {self._is_pod}, Base: {self._has_base}")
+        if "audio" in dlist["user"]["features"]:
+            self._has_speaker = True
+
+        _LOGGER.debug(f"Devices: {self._device_ids}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
 
     async def assign_users(self) -> None:
         """Update device properties."""

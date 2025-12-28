@@ -43,6 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.CLIMATE,
+    Platform.MEDIA_PLAYER,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
@@ -52,6 +53,7 @@ PLATFORMS = [
 DEVICE_SCAN_INTERVAL = timedelta(seconds=60)
 USER_SCAN_INTERVAL = timedelta(seconds=30)
 BASE_SCAN_INTERVAL = timedelta(seconds=60)
+SPEAKER_SCAN_INTERVAL = timedelta(seconds=60)
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -76,6 +78,7 @@ class EightSleepConfigEntryData:
     device_coordinator: DataUpdateCoordinator
     user_coordinator: DataUpdateCoordinator
     base_coordinator: DataUpdateCoordinator
+    speaker_coordinator: DataUpdateCoordinator | None = None
 
 
 def _get_device_unique_id(
@@ -166,6 +169,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await user_coordinator.async_config_entry_first_refresh()
     await base_coordinator.async_config_entry_first_refresh()
 
+    # Only create speaker coordinator if speaker is available
+    speaker_coordinator: DataUpdateCoordinator | None = None
+    if eight.has_speaker:
+        speaker_coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_speaker",
+            update_interval=SPEAKER_SCAN_INTERVAL,
+            update_method=eight.update_speaker_data,
+        )
+        await speaker_coordinator.async_config_entry_first_refresh()
+
     if not eight.users:
         # No users, cannot continue
         return False
@@ -215,7 +230,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(
-        eight, device_coordinator, user_coordinator, base_coordinator
+        eight, device_coordinator, user_coordinator, base_coordinator, speaker_coordinator
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -296,6 +311,8 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
         await config_entry_data.device_coordinator.async_request_refresh()
         await config_entry_data.user_coordinator.async_request_refresh()
         await config_entry_data.base_coordinator.async_request_refresh()
+        if config_entry_data.speaker_coordinator:
+            await config_entry_data.speaker_coordinator.async_request_refresh()
 
     async def async_heat_increment(self, target: int) -> None:
         """Handle eight sleep heat increment calls."""
