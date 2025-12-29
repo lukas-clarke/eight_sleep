@@ -15,6 +15,13 @@
           "password": "Password",
           "username": "Username"
         }
+      },
+      "device": {
+        "title": "Select Eight Sleep Pod",
+        "description": "Choose which Eight Sleep device you want to add.",
+        "data": {
+          "device_id": "Pod name"
+        }
       }
     }
   },

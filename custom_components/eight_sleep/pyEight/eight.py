@@ -56,6 +56,7 @@ class EightSleep:
         client_session: ClientSession | None = None,
         httpx_client: httpx.AsyncClient | None = None,
         check_auth: bool = False,
+        device_id: str | None = None,
     ) -> None:
         """Initialize eight sleep class."""
         self._email = email
@@ -71,13 +72,13 @@ class EightSleep:
         self._client_secret = client_secret
 
         self.timezone = timezone
+        self.device_id: str | None = device_id
 
         self.users: dict[str, EightUser] = {}
 
         self._user_id: str | None = None
         self._token: Token | None = None
         self._token_expiration: datetime | None = None
-        self._device_ids: list[str] = []
         self._is_pod: bool = False
         self._has_base: bool = False
         self._has_speaker: bool = False
@@ -107,11 +108,6 @@ class EightSleep:
     def user_id(self) -> str | None:
         """Return user ID of the logged in user."""
         return self._user_id
-
-    @property
-    def device_id(self) -> str | None:
-        """Return devices id."""
-        return self._device_ids[0]
 
     @property
     def device_data(self) -> dict:
@@ -231,7 +227,6 @@ class EightSleep:
                 error_message += f" - Details: {error_details}"
             except ValueError: # Not a JSON response
                 error_message += f" - Response: {response.text}"
-            _LOGGER.error(error_message) # Also log the error here
             raise RequestError(error_message)
 
     @property
@@ -310,7 +305,7 @@ class EightSleep:
             self._internal_session = True
 
         await self.token
-        await self.fetch_device_list()
+        await self.update_device_data()
         await self.assign_users()
 
         # If speaker not detected via feature flag, try probe-based detection
@@ -335,28 +330,9 @@ class EightSleep:
         else:
             _LOGGER.debug("No-op because session is being managed outside of pyEight")
 
-    async def fetch_device_list(self) -> None:
-        """Fetch list of devices."""
-        url = f"{CLIENT_API_URL}/users/me"
-
-        dlist = await self.api_request("get", url)
-        self._device_ids = dlist["user"]["devices"]
-
-        if "cooling" in dlist["user"]["features"]:
-            self._is_pod = True
-
-        if "elevation" in dlist["user"]["features"]:
-            self._has_base = True
-
-        if "audio" in dlist["user"]["features"]:
-            self._has_speaker = True
-
-        _LOGGER.debug(f"Devices: {self._device_ids}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
-
     async def assign_users(self) -> None:
         """Update device properties."""
-        device_id = self._device_ids[0]
-        url = f"{CLIENT_API_URL}/devices/{device_id}?filter=leftUserId,rightUserId,awaySides"
+        url = f"{CLIENT_API_URL}/devices/{self.device_id}?filter=leftUserId,rightUserId,awaySides"
 
         data = await self.api_request("get", url)
 
@@ -413,6 +389,17 @@ class EightSleep:
     def handle_device_json(self, data: dict[str, Any]) -> None:
         """Manage the device json list."""
         self._device_json_list = [data, *self._device_json_list][:10]
+
+        if "cooling" in data["features"]:
+            self._is_pod = True
+
+        if "elevation" in data["features"]:
+            self._has_base = True
+
+        if "audio" in data["features"]:
+            self._has_speaker = True
+
+        _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
 
     async def update_device_data(self) -> None:
         """Update device data json."""
