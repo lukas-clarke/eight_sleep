@@ -35,13 +35,35 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.routines: list[dict[str, Any]] = []
+        self.smart_schedule: dict[str, Any] | None = None
         self.next_alarm = None
         self.next_alarm_id = None
         self.bed_state_type = None
         self.current_side_temp = None
         self.target_heating_temp = None
 
+    def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
+        """Return the temperature that Autopilot (smart schedule) is currently targeting."""
+        if not self.smart_schedule:
+            return None
+        # bedTimeLevel seems to be the primary target for the active sleep session
+        level = self.smart_schedule.get("bedTimeLevel")
+        if level is None:
+            return None
+        try:
+            return heating_level_to_temp(float(level), unit)
+        except (ValueError, TypeError):
+            return None
+
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
+        """Get trend value for specified key."""
+        if len(self.trends) < trend_num + 1:
+            return None
+# ... (omitting unchanged lines for brevity if possible, keeping Context) ...
+# Actually replace_file_content requires exact match. I'll target the __init__ and update_user separately if needed?
+# No, I can do it in chunks or one big block if contiguous.
+# __init__ and update_user are far apart. I should use multi_replace.
+
         """Get trend value for specified key."""
         if len(self.trends) < trend_num + 1:
             return None
@@ -678,11 +700,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         self.bed_state_type = await self.get_bed_state_type()
 
-        current_side_temp_raw = await self.get_current_device_level()
-        if current_side_temp_raw is not None:
-            self.current_side_temp = heating_level_to_temp(current_side_temp_raw, "c")
-        else:
-            self.current_side_temp = None
+        # Update temperature data (current temp, smart schedule, etc.)
+        await self._update_temperature_data()
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
@@ -690,6 +709,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self.target_heating_temp = heating_level_to_temp(
                 self.target_heating_level, "c"
             )
+
+    async def _update_temperature_data(self) -> None:
+        """Fetch and update detailed temperature data including smart schedule."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
+        try:
+            resp = await self.device.api_request("GET", url)
+            if resp and isinstance(resp, dict):
+                # Update current side temp (from sensor)
+                level = resp.get("currentDeviceLevel")
+                if level is not None:
+                    self.current_side_temp = heating_level_to_temp(int(level), "c")
+                else:
+                    self.current_side_temp = None
+                
+                # Update smart schedule (Autopilot)
+                self.smart_schedule = resp.get("smart")
+                _LOGGER.debug(f"User {self.user_id} Smart Schedule: {self.smart_schedule}")
+
+        except Exception as e:
+             _LOGGER.warning(f"Error fetching temperature data for {self.user_id}: {e}")
+
 
     async def set_bed_side(self, side) -> None:
         side = str(side).lower()
