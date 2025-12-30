@@ -23,6 +23,8 @@ from .pyEight.eight import EightSleep
 from .pyEight.user import EightUser
 from .pyEight.util import heating_level_to_temp, temp_to_heating_level
 from .util import convert_hass_temp_unit_to_pyeight_temp_unit
+from homeassistant.helpers.restore_state import RestoreEntity
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +62,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
+class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
     """Representation of an Eight Sleep Thermostat device."""
 
     _attr_has_entity_name = True
@@ -95,16 +97,32 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
             self._attr_max_temp = MAX_TEMP_F
 
         # device data seems to be more up-to-date than user data
-        heating_level_key = f"{user.corrected_side_for_key}TargetHeatingLevel"
-        heating_level = self._eight.device_data.get(heating_level_key)
-        if heating_level is not None:
-            try:
-                # Ensure heating_level is treated as a number, pyEight.util.heating_level_to_temp can handle numeric types.
-                numeric_heating_level = float(heating_level) # Or int() if API guarantees integers
-                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-                self._attr_target_temperature = heating_level_to_temp(numeric_heating_level, unit)
-            except ValueError:
-                _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
+        # Only initialize target temperature from API if the device is currently ON.
+        if user.bed_state_type != "off":
+            heating_level_key = f"{user.corrected_side_for_key}TargetHeatingLevel"
+            heating_level = self._eight.device_data.get(heating_level_key)
+            if heating_level is not None:
+                try:
+                    # Ensure heating_level is treated as a number
+                    numeric_heating_level = float(heating_level)
+                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                    self._attr_target_temperature = heating_level_to_temp(numeric_heating_level, unit)
+                except ValueError:
+                    _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity added to Home Assistant and restore previous temperature."""
+        await super().async_added_to_hass()
+        # Restore last known target temperature if available
+        last_state = await self.async_get_last_state()
+        if last_state:
+            temp = last_state.attributes.get(ATTR_TEMPERATURE)
+            if temp is not None:
+                try:
+                    self._attr_target_temperature = float(temp)
+                    _LOGGER.debug("Restored target temperature %s from previous state", self._attr_target_temperature)
+                except (ValueError, TypeError):
+                    _LOGGER.warning("Failed to restore target temperature from state: %s", temp)
 
     @property
     def current_temperature(self) -> float | None:
@@ -148,7 +166,26 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        # Convert from Celsius to Fahrenheit
+        # If the device is OFF, show the last known user/autopilot target
+        # instead of the API's reported "0" (27C).
+        # When OFF, prefer the stored target temperature; if none, fall back to Autopilot schedule
+        if self.hvac_mode == HVACMode.OFF:
+            if self._attr_target_temperature is not None:
+                _LOGGER.debug(f"Target Temp (OFF): Returning stored value {self._attr_target_temperature}")
+                return self._attr_target_temperature
+            # Try Autopilot temperature via user helper
+            if self._user_obj:
+                autopilot_temp = self._user_obj.get_autopilot_target_temp(
+                    unit=convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                )
+                if autopilot_temp is not None:
+                    _LOGGER.debug(f"Target Temp (OFF): Returning Autopilot value {autopilot_temp}")
+                    return autopilot_temp
+            # Fallback to stored (may be None)
+            _LOGGER.debug("Target Temp (OFF): No stored or Autopilot value, returning None")
+            return None
+
+        # Otherwise, trust the API (which handles Autopilot changes)
         heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
         raw_target_temp = self._eight.device_data.get(heating_level_key)
         if raw_target_temp is not None:
@@ -161,6 +198,26 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
                 # Fall through to return self._attr_target_temperature
         return self._attr_target_temperature
 
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # When ON, sync the API's target temperature to our local storage
+        # so we persist Autopilot changes if the user turns the device off.
+        if self.hvac_mode != HVACMode.OFF:
+             # Logic to read current target from API and update _attr_target_temperature
+            heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
+            raw_target_temp = self._eight.device_data.get(heating_level_key)
+            if raw_target_temp is not None:
+                try:
+                    numeric_raw_target_temp = float(raw_target_temp)
+                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                    new_target = heating_level_to_temp(numeric_raw_target_temp, unit)
+                    if self._attr_target_temperature != new_target:
+                         _LOGGER.debug(f"Syncing Autopilot/External change: {self._attr_target_temperature} -> {new_target}")
+                         self._attr_target_temperature = new_target
+                except ValueError:
+                    pass
+        super()._handle_coordinator_update()
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode (heat_cool or off)."""
         if not self._user_obj:
@@ -170,6 +227,10 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity):
             await self._user_obj.turn_off_side()
         else:
             await self._user_obj.turn_on_side()
+            # Restore the target temperature if we have one
+            if self._attr_target_temperature is not None:
+                _LOGGER.debug(f"Turn On: Restoring target temperature to {self._attr_target_temperature}")
+                await self.async_set_temperature(temperature=self._attr_target_temperature)
 
         # Refresh state
         await self.coordinator.async_request_refresh()
