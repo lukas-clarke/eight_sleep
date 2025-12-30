@@ -41,7 +41,7 @@ class TestEightSleep(unittest.IsolatedAsyncioTestCase):
         eight._api_session = mock_aiohttp_session_instance
         await eight.fetch_device_list()
 
-        self.assertEqual(eight._device_ids, ["dev123"])
+        self.assertEqual(eight.device_id, "dev123")
         self.assertTrue(eight._is_pod)
         self.assertTrue(eight._has_base)
         mock_aiohttp_session_instance.request.assert_called_once_with(
@@ -95,7 +95,7 @@ class TestEightSleep(unittest.IsolatedAsyncioTestCase):
 
         eight = EightSleep(self.email, self.password, self.timezone)
         eight._api_session = mock_aiohttp_session_instance
-        eight._device_ids = ["dev123"] # Pre-set device ID for the test
+        eight.device_id = "dev123" # Pre-set device ID for the test
 
         await eight.assign_users()
 
@@ -122,7 +122,7 @@ class TestEightSleep(unittest.IsolatedAsyncioTestCase):
 
         eight = EightSleep(self.email, self.password, self.timezone)
         eight._api_session = mock_aiohttp_session_instance
-        eight._device_ids = ["dev123"] # Pre-set device ID
+        eight.device_id = "dev123" # Pre-set device ID
 
         await eight.update_device_data()
 
