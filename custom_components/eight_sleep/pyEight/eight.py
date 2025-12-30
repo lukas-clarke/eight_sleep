@@ -270,8 +270,14 @@ class EightSleep:
     @property
     def base_user(self) -> EightUser | None:
         """Return the user object for the base."""
-        if self.has_base:
-            return next(iter(self.users.values()))
+        if not self.has_base:
+            return
+        
+        for user in self.users.values():
+            if user.side != "away":
+                return user
+
+        _LOGGER.info("No base user found, it's likely all base users are 'away'.")
 
     async def _probe_speaker_availability(self) -> bool:
         """Probe for speaker by attempting to get player state.
