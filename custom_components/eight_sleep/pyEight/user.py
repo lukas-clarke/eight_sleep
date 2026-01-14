@@ -59,14 +59,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Get trend value for specified key."""
         if len(self.trends) < trend_num + 1:
             return None
-# ... (omitting unchanged lines for brevity if possible, keeping Context) ...
-# Actually replace_file_content requires exact match. I'll target the __init__ and update_user separately if needed?
-# No, I can do it in chunks or one big block if contiguous.
-# __init__ and update_user are far apart. I should use multi_replace.
 
-        """Get trend value for specified key."""
-        if len(self.trends) < trend_num + 1:
-            return None
         data_source = self.trends[-(trend_num + 1)] # Use a different variable name to avoid confusion
         if isinstance(keys, str):
             value = data_source.get(keys)
