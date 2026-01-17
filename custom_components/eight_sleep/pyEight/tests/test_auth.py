@@ -148,7 +148,7 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(eight._token.bearer_token, "fake_access_token")
         # Check token's main_id directly
         self.assertEqual(eight._token.main_id, "fake_user_id_main")
-        self.assertIn("fake_device_id_123", eight._device_ids)
+        self.assertEqual("fake_device_id_123", eight.device_id)
         self.assertTrue(eight._is_pod)
         self.assertIn("user_left_abc", eight.users)
         self.assertIn("user_right_def", eight.users)
