@@ -127,6 +127,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client_secret = entry.data[CONF_CLIENT_SECRET]
     else:
         client_secret = None
+    if CONF_DEVICE_ID in entry.data:
+        device_id = entry.data[CONF_DEVICE_ID]
+    else:
+        device_id = None
     eight = EightSleep(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
@@ -135,7 +139,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client_secret,
         client_session=async_get_clientsession(hass),
         httpx_client=get_async_client(hass),
-        device_id=entry.data[CONF_DEVICE_ID],
+        device_id=device_id,
     )
     # Authenticate, build sensors
     try:

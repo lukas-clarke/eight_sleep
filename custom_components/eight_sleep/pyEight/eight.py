@@ -305,6 +305,10 @@ class EightSleep:
             self._internal_session = True
 
         await self.token
+        
+        if self.device_id is None:
+            await self.fetch_device_id()
+
         await self.update_device_data()
         await self.assign_users()
 
@@ -400,6 +404,14 @@ class EightSleep:
             self._has_speaker = True
 
         _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
+
+    async def fetch_device_id(self) -> None:
+        """Fetch device id for backwards compatibility."""
+        url = f"{CLIENT_API_URL}/users/me"
+        dlist = await self.api_request("get", url)
+
+       self.device_id =  dlist["user"]["devices"][0]
+        
 
     async def update_device_data(self) -> None:
         """Update device data json."""
