@@ -410,8 +410,7 @@ class EightSleep:
         url = f"{CLIENT_API_URL}/users/me"
         dlist = await self.api_request("get", url)
 
-       self.device_id =  dlist["user"]["devices"][0]
-        
+        self.device_id =  dlist["user"]["devices"][0]
 
     async def update_device_data(self) -> None:
         """Update device data json."""
