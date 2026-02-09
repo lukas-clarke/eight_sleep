@@ -24,6 +24,7 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
 
     for user in eight.users.values():
+        # Routine Alarms
         alarm_index = 1
         for routine in user.routines:
             for alarm in routine["alarms"]:
@@ -43,18 +44,26 @@ async def async_setup_entry(
                     routine["id"]))
 
                 alarm_index += 1
-        description = SwitchEntityDescription(
-            key="next_alarm",
-            name="Next Alarm",
-            icon="mdi:alarm",
-        )
 
-        entities.append(EightSwitchEntity(
-            entry,
-            config_entry_data.user_coordinator,
-            eight,
-            user,
-            description))
+        # One-Off Alarms
+        one_off_alarm_index = 1
+        for alarm in user.one_off_alarms:
+            description = SwitchEntityDescription(
+                key=f"one_off_alarm_{one_off_alarm_index}",
+                name=f"One-Off Alarm {one_off_alarm_index}",
+                icon="mdi:alarm",
+            )
+
+            entities.append(EightSwitchEntity(
+                entry,
+                config_entry_data.user_coordinator,
+                eight,
+                user,
+                description,
+                alarm["alarmId"],
+                None))
+
+            one_off_alarm_index += 1
 
     async_add_entities(entities)
 
@@ -79,34 +88,54 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
         self._attr_extra_state_attributes = {}
         self._update_attributes()
 
+    @callback
     def _update_attributes(self) -> None:
-        if self._user_obj:
-            self._attr_is_on = self._user_obj.get_alarm_enabled(self._alarm_id)
+        """Update the entity attributes."""
+        if not self._user_obj or not (alarm_id := self._alarm_id):
+            self._attr_is_on = False
+            self._attr_extra_state_attributes = {}
+            return
 
-            alarm_id = self._alarm_id or self._user_obj.next_alarm_id
-            if alarm_id:
-                for routine in self._user_obj.routines:
+        self._attr_extra_state_attributes = {}
+
+        # One-Off Alarms
+        if self._routine_id is None:
+            for alarm in self._user_obj.one_off_alarms:
+                if alarm["alarmId"] == alarm_id:
+                    self._attr_is_on = alarm["enabled"]
+                    self._attr_extra_state_attributes["time"] = alarm.get("time")
+
+                    if settings := alarm.get("settings"):
+                        self._attr_extra_state_attributes["thermal"] = settings.get("thermal")
+                        self._attr_extra_state_attributes["vibration"] = settings.get("vibration")
+
+                    return
+
+        # Routine Alarms
+        else:
+            for routine in self._user_obj.routines:
+                if routine["id"] == self._routine_id:
                     if "override" in routine:
                         for alarm in routine["override"]["alarms"]:
                             if alarm["alarmId"] == alarm_id:
-                                self._attr_extra_state_attributes["time"] = alarm["time"]
-                                self._attr_extra_state_attributes["days"] = "Tonight"
+                                self._attr_is_on = alarm["enabled"]
+                                self._attr_extra_state_attributes["time"] = alarm.get("time") or alarm.get("timeWithOffset", {}).get("time")
+                                self._attr_extra_state_attributes["days"] = routine["days"]
                                 self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
                                 self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
                                 return
 
                     for alarm in routine["alarms"]:
                         if alarm["alarmId"] == alarm_id:
+                            self._attr_is_on = not alarm["disabledIndividually"]
                             self._attr_extra_state_attributes["time"] = alarm["timeWithOffset"]["time"]
                             self._attr_extra_state_attributes["days"] = routine["days"]
                             self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
                             self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
                             return
 
-        self._attr_extra_state_attributes.pop("time", None)
-        self._attr_extra_state_attributes.pop("days", None)
-        self._attr_extra_state_attributes.pop("thermal", None)
-        self._attr_extra_state_attributes.pop("vibration", None)
+        self._attr_is_on = False
+        self._attr_extra_state_attributes = {}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._user_obj:
