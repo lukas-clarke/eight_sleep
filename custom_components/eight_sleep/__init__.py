@@ -21,6 +21,7 @@ from homeassistant.const import (
     CONF_USERNAME,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_DEVICE_ID,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -126,6 +127,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client_secret = entry.data[CONF_CLIENT_SECRET]
     else:
         client_secret = None
+    if CONF_DEVICE_ID in entry.data:
+        device_id = entry.data[CONF_DEVICE_ID]
+    else:
+        device_id = None
     eight = EightSleep(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
@@ -133,7 +138,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client_id,
         client_secret,
         client_session=async_get_clientsession(hass),
-        httpx_client=get_async_client(hass)
+        httpx_client=get_async_client(hass),
+        device_id=device_id,
     )
     # Authenticate, build sensors
     try:
@@ -198,7 +204,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     dev_reg.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, _get_device_unique_id(eight))},
-        name=f"{entry.data[CONF_USERNAME]}'s Eight Sleep",
+        name=f"{entry.title} Eight Sleep Hub",
         **device_data,
     )
     for user in eight.users.values():
@@ -224,7 +230,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, base_entity=True))},
-            name=f"{entry.data[CONF_USERNAME]}'s Base",
+            name=f"{entry.title} Base",
             via_device=(DOMAIN, _get_device_unique_id(eight)),
             **base_device_data,
         )
