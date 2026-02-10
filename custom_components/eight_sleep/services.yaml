@@ -147,6 +147,8 @@ set_routine_bedtime:
         time:
 
 set_one_off_alarm:
+  name: Set One-Off Alarm
+  description: Sets a one-off alarm for the specified time.
   target:
     entity:
       integration: eight_sleep

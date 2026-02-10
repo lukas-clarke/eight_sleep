@@ -8,7 +8,8 @@ Licensed under the MIT license.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import datetime, time as dt_time, timedelta, timezone
 import logging
 import statistics
 from typing import TYPE_CHECKING, Any
@@ -36,6 +37,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.routines: list[dict[str, Any]] = []
+        self.one_off_alarms: list[dict[str, Any]] = []
         self.smart_schedule: dict[str, Any] | None = None
         self.next_alarm = None
         self.next_alarm_id = None
@@ -44,6 +46,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.target_heating_temp = None
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
+        self._one_off_alarm_lock = asyncio.Lock()
+        self._one_off_alarm_last_call: float = 0.0
 
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
@@ -151,6 +155,34 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         raise Exception(f"Routine with ID {id} not found")
 
+    def is_one_off_alarm(self, alarm_id: str) -> bool:
+        """Return true if the alarm ID is a one-off alarm."""
+        return any(alarm["alarmId"] == alarm_id for alarm in self.one_off_alarms)
+
+    def _get_one_off_alarm_update_payload(self, alarm_id: str, enabled: bool) -> dict[str, Any]:
+        """Generate the payload to update a one-off alarm."""
+        updated_alarms = []
+        found = False
+        for alarm in self.one_off_alarms:
+            if alarm["alarmId"] == alarm_id:
+                updated_alarm = alarm.copy()
+                updated_alarm["enabled"] = enabled
+
+                if "dismissedUntil" not in updated_alarm:
+                    updated_alarm["dismissedUntil"] = "1970-01-01T00:00:00Z"
+                if "snoozedUntil" not in updated_alarm:
+                    updated_alarm["snoozedUntil"] = "1970-01-01T00:00:00Z"
+
+                updated_alarms.append(updated_alarm)
+                found = True
+            else:
+                updated_alarms.append(alarm.copy())
+
+        if not found:
+            raise Exception(f"One-off alarm with ID {alarm_id} not found")
+
+        return {"routines": self.routines, "oneOffAlarms": updated_alarms}
+
     def get_alarm_enabled(self, id: str | None) -> bool:
         """Get alarm enabled for the specified ID.
         If no ID is specified, the next alarm will be used."""
@@ -160,6 +192,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 id = self.next_alarm_id
             else:
                 return False
+
+        # Check one-off alarms first
+        for alarm in self.one_off_alarms:
+            if alarm["alarmId"] == id:
+                return alarm["enabled"]
 
         # There are two fields that represent the state of an alarm:
         #
@@ -179,7 +216,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 if alarm["alarmId"] == id:
                     return alarm["enabled"] if check_next_alarm else not alarm["disabledIndividually"]
 
-        raise Exception(f"Alarm with ID {id} not found")
+        _LOGGER.warning("Alarm with ID %s not found in one-off alarms or routines", id)
+        return False
 
     def _get_next_alarm_routine_id(self) -> str:
         for routine in self.routines:
@@ -852,21 +890,41 @@ class EightUser:  # pylint: disable=too-many-public-methods
     async def set_alarm_enabled(self, routine_id: str | None, alarm_id: str | None, enabled: bool) -> None:
         """Enables or disables the alarm.
         If no ID is specified, the next alarm will be used."""
+
+        target_alarm_id = alarm_id
+        if target_alarm_id is None:
+            if self.next_alarm_id is None:
+                return
+            target_alarm_id = self.next_alarm_id
+
+        # Handle one-off alarms
+        if self.is_one_off_alarm(target_alarm_id):
+            try:
+                url = APP_API_URL + f"v2/users/{self.user_id}/routines?ignoreDeviceErrors=false"
+                data = self._get_one_off_alarm_update_payload(target_alarm_id, enabled)
+                await self.device.api_request("PUT", url, data=data)
+                return
+            except Exception as e:
+                _LOGGER.error("Failed to update one-off alarm %s: %s", target_alarm_id, e)
+
+        # Handle routine alarms
         if routine_id and alarm_id:
             await self._set_alarm_enabled(routine_id, alarm_id, enabled)
             return
+
         if self.next_alarm_id is None:
-            # We don't do anything for now if there is no next alarm
             return
+
         routine_id = self._get_next_alarm_routine_id()
         routine = self._get_routine(routine_id)
         # If there is already an override, toggle it
         if "override" in routine:
-            await self._set_alarm_enabled(routine_id, self.next_alarm_id, enabled)
+            await self._set_alarm_enabled(routine_id, target_alarm_id, enabled)
             return
+
         # Otherwise create a new override
         for alarm in routine["alarms"]:
-            if alarm["alarmId"] == self.next_alarm_id:
+            if alarm["alarmId"] == target_alarm_id:
                 routine["override"] = {
                     "routineEnabled": True,
                     "alarms": [{
@@ -876,6 +934,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
                         "dismissUntil": alarm.get("dismissUntil"),
                         "snoozeUntil": alarm.get("snoozeUntil"),
                         "time": alarm["timeWithOffset"]["time"],
+                        "alarmId": target_alarm_id,
                     }],
                 }
                 await self.device.api_request(
@@ -954,30 +1013,55 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.trends = trend_data.get("days", [])
 
     async def update_routines_data(self) -> None:
+        """Update user routine and alarm data."""
         url = APP_API_URL + f"v2/users/{self.user_id}/routines"
         resp = await self.device.api_request("GET", url)
 
-        self.routines = resp["settings"]["routines"]
+        if resp is None:
+            _LOGGER.error("Unable to fetch routine data for %s", self.user_id)
+            return
 
-        try:
-            nextTimestamp = resp["state"]["nextAlarm"]["nextTimestamp"]
-        except KeyError:
-            nextTimestamp = None
+        # Store routines and one-off alarms
+        self.routines = resp["settings"].get("routines", [])
+        self.one_off_alarms = resp["settings"].get("oneOffAlarms", [])
 
-        if not nextTimestamp:
-            self.next_alarm = None
-            self.next_alarm_id = None
-            # Check if there is an upcoming routine with an alarm (which is currently disabled)
-            if "upcomingRoutineId" in resp["state"]:
+        # Reset alarm state
+        self.next_alarm = None
+        self.next_alarm_id = None
+
+        next_alarm_state = resp["state"].get("nextAlarm")
+
+        if next_alarm_state:
+            self.next_alarm_id = next_alarm_state.get("alarmId")
+
+            if next_alarm_state.get("nextTimestamp"):
+                try:
+                    self.next_alarm = self.device.convert_string_to_datetime(
+                        next_alarm_state["nextTimestamp"]
+                    )
+                except Exception as e:
+                    _LOGGER.error(
+                        "Failed to convert nextTimestamp '%s' to datetime for user %s: %s",
+                        next_alarm_state["nextTimestamp"],
+                        self.user_id,
+                        e,
+                    )
+
+        # Check if there is an upcoming routine with an alarm (which is currently disabled)
+        if self.next_alarm_id is None and "upcomingRoutineId" in resp["state"]:
+            try:
                 upcoming_routine = self._get_routine(resp["state"]["upcomingRoutineId"])
                 if upcoming_routine.get("override"):
                     if upcoming_routine["override"].get("alarms"):
                         self.next_alarm_id = upcoming_routine["override"]["alarms"][0]["alarmId"]
                 elif upcoming_routine.get("alarms"):
                     self.next_alarm_id = upcoming_routine["alarms"][0]["alarmId"]
-        else:
-            self.next_alarm = self.device.convert_string_to_datetime(nextTimestamp)
-            self.next_alarm_id = resp["state"]["nextAlarm"]["alarmId"]
+            except Exception:
+                _LOGGER.debug(
+                    "Failed to find upcoming routine %s for user %s",
+                    resp["state"]["upcomingRoutineId"],
+                    self.user_id,
+                )
 
     async def set_routine_alarm(self, routine_id: str, alarm_id: str, alarm_time: str) -> None:
         """Set an alarm from a routine."""
@@ -1075,7 +1159,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def set_one_off_alarm(
         self,
-        time: str,
+        time: str | dt_time,
         enabled: bool = True,
         vibration_enabled: bool = True,
         vibration_power_level: int = 50,
@@ -1083,28 +1167,67 @@ class EightUser:  # pylint: disable=too-many-public-methods
         thermal_enabled: bool = True,
         thermal_level: int = 0,
     ) -> None:
-        """Set a one-off alarm."""
-        url = APP_API_URL + f"v2/users/{self.user_id}/routines?ignoreDeviceErrors=false"
-        data = {
-            "oneOffAlarms": [
-                {
-                    "time": time,
-                    "enabled": enabled,
-                    "settings": {
-                        "vibration": {
-                            "enabled": vibration_enabled,
-                            "powerLevel": vibration_power_level,
-                            "pattern": vibration_pattern,
-                        },
-                        "thermal": {
-                            "enabled": thermal_enabled,
-                            "level": thermal_level,
-                        },
+        """Set a one-off alarm.
+
+        Uses a lock with time-based debounce to prevent duplicate API calls
+        when multiple HA entities trigger this method from a single service call.
+        """
+        import time as time_module
+
+        async with self._one_off_alarm_lock:
+            current_time = time_module.monotonic()
+            if current_time - self._one_off_alarm_last_call < 2.0:
+                _LOGGER.warning(
+                    "User %s: Skipping duplicate set_one_off_alarm call (debounced)",
+                    self.user_id,
+                )
+                return
+
+            self._one_off_alarm_last_call = current_time
+
+            # Convert time to string if it's a datetime.time object
+            if isinstance(time, dt_time):
+                time = time.strftime('%H:%M:%S')
+
+            new_alarm = {
+                "time": time,
+                "enabled": enabled,
+                "settings": {
+                    "vibration": {
+                        "enabled": vibration_enabled,
+                        "powerLevel": vibration_power_level,
+                        "pattern": vibration_pattern.upper(),
                     },
-                }
-            ]
-        }
-        await self.device.api_request("PUT", url, data=data)
+                    "thermal": {
+                        "enabled": thermal_enabled,
+                        "level": thermal_level,
+                    },
+                },
+            }
+
+            # Fetch latest data to get current one-off alarms
+            await self.update_routines_data()
+
+            # Append new alarm to existing one-off alarms
+            updated_alarms = self.one_off_alarms.copy()
+            updated_alarms.append(new_alarm)
+
+            url = APP_API_URL + f"v2/users/{self.user_id}/routines?ignoreDeviceErrors=false"
+            data = {
+                "state": {},
+                "routines": self.routines,
+                "oneOffAlarms": updated_alarms,
+            }
+            _LOGGER.info(
+                "User %s: Adding one-off alarm at %s (total: %d alarms)",
+                self.user_id,
+                time,
+                len(updated_alarms),
+            )
+            await self.device.api_request("PUT", url, data=data)
+
+            # Update local state
+            self.one_off_alarms = updated_alarms
 
     # Speaker methods
     @property
