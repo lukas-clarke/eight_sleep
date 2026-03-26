@@ -355,7 +355,7 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if self._sensor == "sleep_stage":
             return self._user_obj.current_sleep_stage
         if self._sensor == "routines":
-            return len(self._user_obj.routines) if self._user_obj.routines else 0
+            return len(self._user_obj.alarms) if self._user_obj.alarms else 0
 
         return None
 
@@ -376,33 +376,20 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             }
             return state_attr
         elif self._sensor == "routines" and self._user_obj:
-            routines_data = []
-            for routine in self._user_obj.routines:
-                routine_info = {
-                    "id": routine["id"],
-                    "name": routine.get("name", "Unnamed Routine"),
-                    "days": routine.get("days", []),
-                    "alarms": []
-                }
-                # Add alarms from the main routine
-                for alarm in routine.get("alarms", []):
-                    routine_info["alarms"].append({
-                        "id": alarm["alarmId"],
-                        "time": alarm["timeWithOffset"]["time"],
-                        "enabled": alarm["enabled"],
-                        "disabledIndividually": alarm.get("disabledIndividually", False)
-                    })
-                # Add alarms from override if present
-                if "override" in routine:
-                    for alarm in routine["override"].get("alarms", []):
-                        routine_info["alarms"].append({
-                            "id": alarm["alarmId"],
-                            "time": alarm["time"],
-                            "enabled": alarm["enabled"],
-                            "disabledIndividually": not alarm["enabled"]
-                        })
-                routines_data.append(routine_info)
-            return {"routines": routines_data}
+            alarms_data = []
+            for alarm in self._user_obj.alarms:
+                repeat = alarm.get("repeat", {})
+                weekdays = repeat.get("weekDays", {})
+                days = [day.capitalize() for day, active in weekdays.items() if active]
+                alarms_data.append({
+                    "id": alarm["id"],
+                    "time": alarm.get("time"),
+                    "enabled": alarm.get("enabled", False),
+                    "days": days if repeat.get("enabled") else [],
+                    "vibration": alarm.get("vibration", {}),
+                    "thermal": alarm.get("thermal", {}),
+                })
+            return {"alarms": alarms_data}
 
         if attr is None:
             # Skip attributes if sensor type doesn't support

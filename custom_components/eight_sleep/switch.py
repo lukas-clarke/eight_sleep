@@ -15,6 +15,19 @@ from . import EightSleepBaseEntity, EightSleepConfigEntryData
 from .const import DOMAIN
 
 
+def _format_weekdays(repeat: dict) -> str | list[str]:
+    """Convert the new repeat.weekDays dict to a display-friendly format."""
+    if not repeat.get("enabled", False):
+        return "Once"
+    weekdays = repeat.get("weekDays", {})
+    day_names = [day.capitalize() for day, active in weekdays.items() if active]
+    if len(day_names) == 7:
+        return "Every day"
+    if not day_names:
+        return "Once"
+    return day_names
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -24,37 +37,21 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
 
     for user in eight.users.values():
-        alarm_index = 1
-        for routine in user.routines:
-            for alarm in routine["alarms"]:
-                description = SwitchEntityDescription(
-                    key=f"alarm_{alarm_index}",
-                    name=f"Alarm {alarm_index}",
-                    icon="mdi:alarm",
-                )
+        # Create a switch entity for each alarm from the new alarms API
+        for alarm_index, alarm in enumerate(user.alarms, start=1):
+            description = SwitchEntityDescription(
+                key=f"alarm_{alarm_index}",
+                name=f"Alarm {alarm_index}",
+                icon="mdi:alarm",
+            )
 
-                entities.append(EightSwitchEntity(
-                    entry,
-                    config_entry_data.user_coordinator,
-                    eight,
-                    user,
-                    description,
-                    alarm["alarmId"],
-                    routine["id"]))
-
-                alarm_index += 1
-        description = SwitchEntityDescription(
-            key="next_alarm",
-            name="Next Alarm",
-            icon="mdi:alarm",
-        )
-
-        entities.append(EightSwitchEntity(
-            entry,
-            config_entry_data.user_coordinator,
-            eight,
-            user,
-            description))
+            entities.append(EightSwitchEntity(
+                entry,
+                config_entry_data.user_coordinator,
+                eight,
+                user,
+                description,
+                alarm["id"]))
 
     async_add_entities(entities)
 
@@ -70,12 +67,10 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
         user: EightUser,
         entity_description: SwitchEntityDescription,
         alarm_id: str | None = None,
-        routine_id: str | None = None,
     ) -> None:
         super().__init__(entry, coordinator, eight, user, entity_description.key)
         self.entity_description = entity_description
         self._alarm_id = alarm_id
-        self._routine_id = routine_id
         self._attr_extra_state_attributes = {}
         self._update_attributes()
 
@@ -83,25 +78,15 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
         if self._user_obj:
             self._attr_is_on = self._user_obj.get_alarm_enabled(self._alarm_id)
 
-            alarm_id = self._alarm_id or self._user_obj.next_alarm_id
-            if alarm_id:
-                for routine in self._user_obj.routines:
-                    if "override" in routine:
-                        for alarm in routine["override"]["alarms"]:
-                            if alarm["alarmId"] == alarm_id:
-                                self._attr_extra_state_attributes["time"] = alarm["time"]
-                                self._attr_extra_state_attributes["days"] = "Tonight"
-                                self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
-                                self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
-                                return
-
-                    for alarm in routine["alarms"]:
-                        if alarm["alarmId"] == alarm_id:
-                            self._attr_extra_state_attributes["time"] = alarm["timeWithOffset"]["time"]
-                            self._attr_extra_state_attributes["days"] = routine["days"]
-                            self._attr_extra_state_attributes["thermal"] = alarm["settings"]["thermal"]
-                            self._attr_extra_state_attributes["vibration"] = alarm["settings"]["vibration"]
-                            return
+            for alarm in self._user_obj.alarms:
+                if alarm["id"] == self._alarm_id:
+                        self._attr_extra_state_attributes["time"] = alarm.get("time")
+                        self._attr_extra_state_attributes["days"] = _format_weekdays(
+                            alarm.get("repeat", {})
+                        )
+                        self._attr_extra_state_attributes["thermal"] = alarm.get("thermal", {})
+                        self._attr_extra_state_attributes["vibration"] = alarm.get("vibration", {})
+                        return
 
         self._attr_extra_state_attributes.pop("time", None)
         self._attr_extra_state_attributes.pop("days", None)
@@ -110,12 +95,12 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._user_obj:
-            await self._user_obj.set_alarm_enabled(self._routine_id, self._alarm_id, True)
+            await self._user_obj.set_alarm_enabled(None, self._alarm_id, True)
             await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         if self._user_obj:
-            await self._user_obj.set_alarm_enabled(self._routine_id, self._alarm_id, False)
+            await self._user_obj.set_alarm_enabled(None, self._alarm_id, False)
             await self.coordinator.async_request_refresh()
 
     @callback
