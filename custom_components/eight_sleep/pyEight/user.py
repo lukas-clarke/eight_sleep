@@ -39,6 +39,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.smart_schedule: dict[str, Any] | None = None
         self.next_alarm = None
         self.next_alarm_id = None
+        self.snooze_minutes: int = 9
         self.bed_state_type = None
         self.current_side_temp = None
         self.target_heating_temp = None
@@ -795,21 +796,43 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = {"currentState": {"type": "smart"}}
         await self.device.api_request("PUT", url, data=data)
 
+    def _is_alarm_active(self) -> bool:
+        """Check if the next alarm is currently ringing or snoozed."""
+        if not self.next_alarm_id:
+            return False
+        try:
+            alarm = self._get_alarm(self.next_alarm_id)
+        except Exception:
+            return False
+        if alarm.get("snoozing", False):
+            return True
+        start = alarm.get("startTimestamp")
+        end = alarm.get("endTimestamp")
+        if not start or not end:
+            return False
+        now = datetime.now(timezone.utc)
+        try:
+            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return False
+        return start_dt <= now <= end_dt
+
     async def alarm_snooze(self, snooze_minutes: int):
         """Snoozes the user alarm for the specified minutes.
-        Silently ignores 409 Conflict (alarm not currently ringing).
+        Only acts if the alarm is currently ringing or snoozed.
 
         PUT /v1/users/{userId}/alarms/{alarmId}/snooze
         Request: {"snoozeMinutes": 9, "ignoreDeviceErrors": false}
         Response: 200 empty body (Content-Length: 0) or 409 if not ringing
         """
-        if not self.next_alarm_id:
-            _LOGGER.debug("No next alarm ID set for %s, nothing to snooze", self.user_id)
+        if not self._is_alarm_active():
+            _LOGGER.debug("Alarm not currently active for %s, nothing to snooze", self.user_id)
             return
         url = APP_API_URL + f"v1/users/{self.user_id}/alarms/{self.next_alarm_id}/snooze"
         data = {"snoozeMinutes": snooze_minutes, "ignoreDeviceErrors": False}
         try:
-            await self.device.api_request("PUT", url, data=data)
+            await self.device.api_request("PUT", url, data=data, return_json=False)
         except RequestError as err:
             if "409" in str(err):
                 _LOGGER.debug("Alarm not currently ringing for %s, nothing to snooze", self.user_id)

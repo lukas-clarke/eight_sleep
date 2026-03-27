@@ -148,12 +148,16 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
                     )
                     self._attr_extra_state_attributes["thermal"] = alarm.get("thermal", {})
                     self._attr_extra_state_attributes["vibration"] = alarm.get("vibration", {})
+                    self._attr_extra_state_attributes["snoozing"] = alarm.get("snoozing", False)
+                    self._attr_extra_state_attributes["snoozed_until"] = alarm.get("snoozedUntil")
                     return
 
         self._attr_extra_state_attributes.pop("time", None)
         self._attr_extra_state_attributes.pop("days", None)
         self._attr_extra_state_attributes.pop("thermal", None)
         self._attr_extra_state_attributes.pop("vibration", None)
+        self._attr_extra_state_attributes.pop("snoozing", None)
+        self._attr_extra_state_attributes.pop("snoozed_until", None)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._user_obj:

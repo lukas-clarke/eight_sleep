@@ -20,6 +20,11 @@ BUTTON_DESCRIPTIONS = [
         name="Dismiss Alarm",
         icon="mdi:alarm-check",
     ),
+    ButtonEntityDescription(
+        key="alarm_snooze",
+        name="Snooze Alarm",
+        icon="mdi:alarm-snooze",
+    ),
 ]
 
 
@@ -47,7 +52,7 @@ async def async_setup_entry(
 
 
 class EightAlarmButton(EightSleepBaseEntity, ButtonEntity):
-    """Button to dismiss the currently active alarm."""
+    """Button to dismiss or snooze the currently active alarm."""
 
     def __init__(
         self,
@@ -64,5 +69,9 @@ class EightAlarmButton(EightSleepBaseEntity, ButtonEntity):
         if self._user_obj is None:
             return
 
-        await self._user_obj.alarm_dismiss()
+        if self.entity_description.key == "alarm_dismiss":
+            await self._user_obj.alarm_dismiss()
+        elif self.entity_description.key == "alarm_snooze":
+            await self._user_obj.alarm_snooze(self._user_obj.snooze_minutes)
+
         await self.coordinator.async_request_refresh()
