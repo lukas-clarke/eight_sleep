@@ -797,16 +797,24 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def alarm_snooze(self, snooze_minutes: int):
         """Snoozes the user alarm for the specified minutes.
+        Silently ignores 409 Conflict (alarm not currently ringing).
 
         PUT /v1/users/{userId}/alarms/{alarmId}/snooze
         Request: {"snoozeMinutes": 9, "ignoreDeviceErrors": false}
         Response: 200 empty body (Content-Length: 0) or 409 if not ringing
         """
         if not self.next_alarm_id:
-            raise Exception(f"No next alarm ID set for {self.user_id}")
+            _LOGGER.debug("No next alarm ID set for %s, nothing to snooze", self.user_id)
+            return
         url = APP_API_URL + f"v1/users/{self.user_id}/alarms/{self.next_alarm_id}/snooze"
         data = {"snoozeMinutes": snooze_minutes, "ignoreDeviceErrors": False}
-        await self.device.api_request("PUT", url, data=data)
+        try:
+            await self.device.api_request("PUT", url, data=data)
+        except RequestError as err:
+            if "409" in str(err):
+                _LOGGER.debug("Alarm not currently ringing for %s, nothing to snooze", self.user_id)
+            else:
+                raise
 
     async def alarm_stop(self):
         """Stops the next user alarm. Uses dismiss endpoint (no separate stop in API)."""
@@ -814,16 +822,24 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def alarm_dismiss(self):
         """Dismisses the next user alarm.
+        Silently ignores 409 Conflict (alarm not currently ringing).
 
         PUT /v1/users/{userId}/alarms/{alarmId}/dismiss
         Request: {"ignoreDeviceErrors": false}
         Response: 200 with alarm object (or 409 if alarm not ringing)
         """
         if not self.next_alarm_id:
-            raise Exception(f"No next alarm ID set for {self.user_id}")
+            _LOGGER.debug("No next alarm ID set for %s, nothing to dismiss", self.user_id)
+            return
         url = APP_API_URL + f"v1/users/{self.user_id}/alarms/{self.next_alarm_id}/dismiss"
         data = {"ignoreDeviceErrors": False}
-        await self.device.api_request("PUT", url, data=data)
+        try:
+            await self.device.api_request("PUT", url, data=data)
+        except RequestError as err:
+            if "409" in str(err):
+                _LOGGER.debug("Alarm not currently ringing for %s, nothing to dismiss", self.user_id)
+            else:
+                raise
 
     async def set_alarm_enabled(self, routine_id: str | None, alarm_id: str | None, enabled: bool) -> None:
         """Enables or disables the alarm.

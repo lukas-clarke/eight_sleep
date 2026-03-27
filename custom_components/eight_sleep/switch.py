@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from typing import Any
 
 from custom_components.eight_sleep.pyEight.user import EightUser
@@ -8,11 +9,14 @@ from .pyEight.eight import EightSleep
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import EightSleepBaseEntity, EightSleepConfigEntryData
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _format_weekdays(repeat: dict) -> str | list[str]:
@@ -28,32 +32,88 @@ def _format_weekdays(repeat: dict) -> str | list[str]:
     return day_names
 
 
+def _make_alarm_key(alarm_id: str) -> str:
+    """Build a stable entity key from an alarm's UUID."""
+    return f"alarm_{alarm_id}"
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
+    coordinator = config_entry_data.user_coordinator
 
-    entities: list[SwitchEntity] = []
+    # Track entities per user keyed by alarm_id for dynamic add/remove
+    tracked: dict[str, dict[str, EightSwitchEntity]] = {}
 
     for user in eight.users.values():
-        # Create a switch entity for each alarm from the new alarms API
-        for alarm_index, alarm in enumerate(user.alarms, start=1):
-            description = SwitchEntityDescription(
-                key=f"alarm_{alarm_index}",
-                name=f"Alarm {alarm_index}",
-                icon="mdi:alarm",
-            )
+        user_entities: dict[str, EightSwitchEntity] = {}
+        for index, alarm in enumerate(user.alarms, start=1):
+            entity = _create_alarm_entity(entry, coordinator, eight, user, alarm, index)
+            user_entities[alarm["id"]] = entity
+        tracked[user.user_id] = user_entities
 
-            entities.append(EightSwitchEntity(
-                entry,
-                config_entry_data.user_coordinator,
-                eight,
-                user,
-                description,
-                alarm["id"]))
+    # Add all initial entities
+    all_entities = [e for user_map in tracked.values() for e in user_map.values()]
+    async_add_entities(all_entities)
 
-    async_add_entities(entities)
+    # Register a listener to dynamically add/remove entities on coordinator refresh
+    @callback
+    def _async_sync_alarm_entities() -> None:
+        ent_reg = er.async_get(hass)
+
+        for user in eight.users.values():
+            user_entities = tracked.setdefault(user.user_id, {})
+            current_ids = {alarm["id"] for alarm in user.alarms}
+            tracked_ids = set(user_entities.keys())
+
+            # Add entities for new alarms
+            new_ids = current_ids - tracked_ids
+            if new_ids:
+                next_index = len(user_entities) + 1
+                new_entities = []
+                for alarm in user.alarms:
+                    if alarm["id"] in new_ids:
+                        entity = _create_alarm_entity(
+                            entry, coordinator, eight, user, alarm, next_index
+                        )
+                        next_index += 1
+                        user_entities[alarm["id"]] = entity
+                        new_entities.append(entity)
+                async_add_entities(new_entities)
+                _LOGGER.debug("Added %d new alarm entities for user %s", len(new_entities), user.user_id)
+
+            # Remove entities for deleted alarms
+            removed_ids = tracked_ids - current_ids
+            for alarm_id in removed_ids:
+                entity = user_entities.pop(alarm_id)
+                entity_id = ent_reg.async_get_entity_id(
+                    "switch", DOMAIN, entity.unique_id
+                )
+                if entity_id:
+                    ent_reg.async_remove(entity_id)
+                    _LOGGER.debug("Removed alarm entity %s for user %s", entity_id, user.user_id)
+
+    coordinator.async_add_listener(_async_sync_alarm_entities)
+
+
+def _create_alarm_entity(
+    entry: ConfigEntry,
+    coordinator: DataUpdateCoordinator,
+    eight: EightSleep,
+    user: EightUser,
+    alarm: dict[str, Any],
+    index: int,
+) -> EightSwitchEntity:
+    """Create a switch entity for a single alarm."""
+    alarm_id = alarm["id"]
+    description = SwitchEntityDescription(
+        key=_make_alarm_key(alarm_id),
+        name=f"Alarm {index}",
+        icon="mdi:alarm",
+    )
+    return EightSwitchEntity(entry, coordinator, eight, user, description, alarm_id)
 
 
 class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
@@ -66,11 +126,13 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
         eight: EightSleep,
         user: EightUser,
         entity_description: SwitchEntityDescription,
-        alarm_id: str | None = None,
+        alarm_id: str,
     ) -> None:
         super().__init__(entry, coordinator, eight, user, entity_description.key)
         self.entity_description = entity_description
         self._alarm_id = alarm_id
+        # Set clean positional name for entity_id generation at registration
+        self._attr_name = entity_description.name
         self._attr_extra_state_attributes = {}
         self._update_attributes()
 
@@ -80,13 +142,13 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
 
             for alarm in self._user_obj.alarms:
                 if alarm["id"] == self._alarm_id:
-                        self._attr_extra_state_attributes["time"] = alarm.get("time")
-                        self._attr_extra_state_attributes["days"] = _format_weekdays(
-                            alarm.get("repeat", {})
-                        )
-                        self._attr_extra_state_attributes["thermal"] = alarm.get("thermal", {})
-                        self._attr_extra_state_attributes["vibration"] = alarm.get("vibration", {})
-                        return
+                    self._attr_extra_state_attributes["time"] = alarm.get("time")
+                    self._attr_extra_state_attributes["days"] = _format_weekdays(
+                        alarm.get("repeat", {})
+                    )
+                    self._attr_extra_state_attributes["thermal"] = alarm.get("thermal", {})
+                    self._attr_extra_state_attributes["vibration"] = alarm.get("vibration", {})
+                    return
 
         self._attr_extra_state_attributes.pop("time", None)
         self._attr_extra_state_attributes.pop("days", None)
@@ -106,4 +168,12 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         self._update_attributes()
+        # Update display name dynamically (entity_id is already locked at registration)
+        if self._user_obj:
+            for alarm in self._user_obj.alarms:
+                if alarm["id"] == self._alarm_id:
+                    alarm_time = alarm.get("time", "")
+                    if alarm_time:
+                        self._attr_name = f"Alarm {alarm_time[:5]}"
+                    break
         super()._handle_coordinator_update()
