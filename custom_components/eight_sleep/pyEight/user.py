@@ -233,8 +233,18 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     @property
     def bed_presence(self) -> bool:
-        """Return true/false for bed presence based on recent heart rate data."""
+        """Return true/false for bed presence.
 
+        Uses heart rate trend data as the primary signal. When HR data goes
+        stale (10-30 min old), falls back to checking the device-level bed
+        state type. This prevents false negatives when the Eight Sleep cloud
+        API temporarily stops updating trend data during an active sleep
+        session.
+
+        The fallback only extends an existing session (recent HR data that
+        went stale). It does not trigger presence for pre-warming schedules
+        where no HR data was recorded in the current session.
+        """
         timeseries = self._trend_timeseries()
         if not timeseries or "heartRate" not in timeseries:
             return False
@@ -243,11 +253,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
         _LOGGER.debug(f"Last heart rate: {heart_rate_entry} for {self.user_id}")
         heart_rate_time = datetime.fromisoformat(heart_rate_entry[0].replace('Z', '+00:00'))
 
-        time_difference = datetime.now(timezone.utc) - heart_rate_time
+        age_seconds = (datetime.now(timezone.utc) - heart_rate_time).total_seconds()
 
-        # Consider the person present if the last heart rate reading was within the last 10 minutes
-        # This assumes that trend are updated every 5 minutes
-        return time_difference.total_seconds() < 600
+        # Primary: fresh HR data confirms presence
+        if age_seconds < 600:
+            return True
+
+        # Fallback: HR data is 10-30 min stale, but the device reports an
+        # active sleep session. The cloud trend API likely lagged -- keep
+        # presence True to avoid false negatives.
+        # This does NOT trigger for pre-warming (last HR would be from a
+        # previous night, age >> 1800) or when no HR was ever recorded.
+        if age_seconds < 1800:
+            state_type = self.bed_state_type
+            if state_type and state_type.startswith("smart:"):
+                _LOGGER.debug(
+                    f"HR stale ({age_seconds:.0f}s) but device in '{state_type}' "
+                    f"for {self.user_id} -- extending presence"
+                )
+                return True
+
+        return False
 
     @property
     def target_heating_level(self) -> int | None:
