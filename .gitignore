@@ -160,3 +160,6 @@ cython_debug/
 .idea/
 # ignoring md files so that context files can be created here
 *.md
+
+# Dev/exploration scripts (never push)
+.dev/
