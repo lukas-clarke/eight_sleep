@@ -869,24 +869,32 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Stops the next user alarm. Uses dismiss endpoint (no separate stop in API)."""
         await self.alarm_dismiss()
 
-    async def alarm_dismiss(self):
-        """Dismisses the next user alarm.
-        Silently ignores 409 Conflict (alarm not currently ringing).
+    async def alarm_dismiss(self, alarm_id: str | None = None) -> bool:
+        """Dismisses the specified alarm (or next alarm if not specified).
+        Returns True if dismissed successfully, False if not ringing (409).
+
+        Accepts an explicit alarm_id to avoid a race condition where
+        self.next_alarm_id could change between the caller's decision to
+        dismiss and the actual API call (e.g. the coordinator refreshes
+        and flips to tomorrow's alarm mid-dismiss).
 
         PUT /v1/users/{userId}/alarms/{alarmId}/dismiss
         Request: {"ignoreDeviceErrors": false}
         Response: 200 with alarm object (or 409 if alarm not ringing)
         """
-        if not self.next_alarm_id:
-            _LOGGER.debug("No next alarm ID set for %s, nothing to dismiss", self.user_id)
-            return
-        url = APP_API_URL + f"v1/users/{self.user_id}/alarms/{self.next_alarm_id}/dismiss"
+        target_id = alarm_id or self.next_alarm_id
+        if not target_id:
+            _LOGGER.debug("No alarm ID to dismiss for %s", self.user_id)
+            return False
+        url = APP_API_URL + f"v1/users/{self.user_id}/alarms/{target_id}/dismiss"
         data = {"ignoreDeviceErrors": False}
         try:
             await self.device.api_request("PUT", url, data=data)
+            return True
         except RequestError as err:
             if "409" in str(err):
                 _LOGGER.debug("Alarm not currently ringing for %s, nothing to dismiss", self.user_id)
+                return False
             else:
                 raise
 
@@ -1000,27 +1008,50 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         self.alarms = resp.get("alarms", [])
 
-        # Determine next alarm from recommendedAlarm
-        recommended = resp.get("recommendedAlarm", {})
-        next_timestamp = recommended.get("nextTimestamp")
-        recommended_id = recommended.get("id", "")
+        # Find the chronologically soonest enabled alarm across ALL alarms
+        # (not just recommendedAlarm, which may skip one-off alarms).
+        #
+        # An alarm is still "current" if its endTimestamp hasn't passed yet
+        # (i.e. it is still ringing). This prevents the next_alarm from
+        # flipping to tomorrow's alarm the instant now >= nextTimestamp,
+        # which would cause the dismiss button to target the wrong alarm.
+        now = datetime.now(timezone.utc)
+        soonest_time: datetime | None = None
+        soonest_id: str | None = None
 
-        if next_timestamp and recommended_id and recommended.get("enabled", False):
-            self.next_alarm = self.device.convert_string_to_datetime(next_timestamp)
-            self.next_alarm_id = recommended_id
+        all_candidates = list(self.alarms)
+        recommended = resp.get("recommendedAlarm", {})
+        if recommended.get("id"):
+            all_candidates.append(recommended)
+
+        for alarm in all_candidates:
+            if not alarm.get("enabled", False):
+                continue
+            next_ts = alarm.get("nextTimestamp")
+            if not next_ts:
+                continue
+            alarm_dt = self.device.convert_string_to_datetime(next_ts)
+
+            # An alarm is still relevant if it hasn't ended yet (still ringing)
+            # or if its nextTimestamp is in the future (upcoming).
+            end_ts = alarm.get("endTimestamp")
+            if end_ts:
+                end_dt = self.device.convert_string_to_datetime(end_ts)
+                if end_dt < now:
+                    continue  # alarm fully ended
+            elif alarm_dt < now:
+                continue  # no endTimestamp, skip if past
+
+            if soonest_time is None or alarm_dt < soonest_time:
+                soonest_time = alarm_dt
+                soonest_id = alarm["id"]
+
+        if soonest_time and soonest_id:
+            self.next_alarm = soonest_time
+            self.next_alarm_id = soonest_id
         else:
             self.next_alarm = None
-            # Even if no next alarm is scheduled, find the first enabled alarm
-            # so we can still reference it for the switch entity
             self.next_alarm_id = None
-            for alarm in self.alarms:
-                if alarm.get("enabled", False):
-                    self.next_alarm_id = alarm["id"]
-                    if alarm.get("nextTimestamp"):
-                        self.next_alarm = self.device.convert_string_to_datetime(
-                            alarm["nextTimestamp"]
-                        )
-                    break
 
     async def set_alarm_time(self, alarm_id: str, alarm_time: str) -> None:
         """Set the time on an existing alarm via the new alarms API.

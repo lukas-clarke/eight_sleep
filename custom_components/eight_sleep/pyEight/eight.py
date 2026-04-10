@@ -251,9 +251,21 @@ class EightSleep:
         )
 
     async def update_user_data(self) -> None:
-        """Update data for users."""
+        """Update data for users.
+
+        Each user is updated independently so that a transient API failure
+        for one user (e.g. 504, 500) does not abort the entire coordinator
+        update and silently freeze listeners for all users.
+        """
         for user in self.users.values():
-            await user.update_user()
+            try:
+                await user.update_user()
+            except Exception as err:
+                _LOGGER.warning(
+                    "Failed to update user %s: %s — continuing with other users",
+                    user.user_id,
+                    err,
+                )
 
     async def update_base_data(self) -> None:
         """Update data for the bed base.
