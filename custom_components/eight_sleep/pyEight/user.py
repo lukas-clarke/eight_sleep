@@ -8,9 +8,11 @@ Licensed under the MIT license.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 import statistics
+import time as time_module
 from typing import TYPE_CHECKING, Any
 
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
@@ -45,6 +47,33 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.target_heating_temp = None
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
+        # Debounce state for service calls that HA may fire concurrently when
+        # a service targets multiple entities (e.g. both bed sides). Without
+        # this, set_one_off_alarm POSTs duplicate alarms and turn_on/off_side
+        # fire redundant temperature writes.
+        self._service_locks: dict[str, asyncio.Lock] = {}
+        self._service_last_call: dict[str, float] = {}
+
+    async def _debounced(self, key: str, window_seconds: float) -> bool:
+        """Returns True if the caller should proceed, False if debounced.
+
+        Callers acquire a per-key lock, then check the last-call timestamp.
+        If a prior call completed within window_seconds, the current call is
+        skipped.
+        """
+        lock = self._service_locks.setdefault(key, asyncio.Lock())
+        await lock.acquire()
+        now = time_module.monotonic()
+        if now - self._service_last_call.get(key, 0.0) < window_seconds:
+            lock.release()
+            _LOGGER.debug(
+                "User %s: debounced %s (within %.1fs window)",
+                self.user_id, key, window_seconds,
+            )
+            return False
+        self._service_last_call[key] = now
+        lock.release()
+        return True
 
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
@@ -818,6 +847,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def turn_on_side(self):
         """Turns on the side of the user"""
+        if not await self._debounced("turn_on_side", 2.0):
+            return
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
         data = {"currentState": {"type": "smart"}}
         await self.device.api_request("PUT", url, data=data)
@@ -926,6 +957,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def turn_off_side(self):
         """Turns off the side of the user"""
+        if not await self._debounced("turn_off_side", 2.0):
+            return
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
         data = {"currentState": {"type": "off"}}
         await self.device.api_request("PUT", url, data=data)
@@ -1108,6 +1141,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         thermal_level: int = 0,
     ) -> None:
         """Create a new alarm via the new alarms API."""
+        if not await self._debounced("set_one_off_alarm", 2.0):
+            return
         url = APP_API_URL + f"v1/users/{self.user_id}/alarms"
         data = {
             "time": time,
