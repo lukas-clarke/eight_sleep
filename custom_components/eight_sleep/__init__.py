@@ -334,6 +334,12 @@ class EightSleepBaseEntity(CoordinatorEntity[DataUpdateCoordinator]):
             lambda: self._user_obj.increment_heating_level(target)
         )
 
+    async def async_pillow_increment(self, target: int) -> None:
+        """Handle eight sleep pillow increment calls."""
+        await self._generic_service_call(
+            lambda: self._user_obj.increment_pillow_heating_level(target)
+        )
+
     async def async_side_off(
         self,
     ) -> None:

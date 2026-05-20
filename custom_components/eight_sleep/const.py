@@ -67,6 +67,7 @@ SERVICE_AWAY_MODE_START = "away_mode_start"
 SERVICE_AWAY_MODE_STOP = "away_mode_stop"
 SERVICE_REFRESH_DATA = "refresh_data"
 SERVICE_SET_ONE_OFF_ALARM = "set_one_off_alarm"
+SERVICE_PILLOW_INCREMENT = "pillow_increment"
 
 ATTR_TARGET = "target"
 ATTR_DURATION = "duration"

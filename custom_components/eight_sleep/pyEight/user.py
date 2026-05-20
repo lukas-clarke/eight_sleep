@@ -49,11 +49,12 @@ class EightUser:  # pylint: disable=too-many-public-methods
         # Pillow data
         self._pillow_data: dict[str, Any] | None = None
         self._pillow_device_id: str | None = None
+        self._has_pillow_device: bool = False  # Persistent flag, doesn't reset on API errors
 
     @property
     def has_pillow(self) -> bool:
         """Return True if user has a pillow device."""
-        return self._pillow_data is not None
+        return self._has_pillow_device
 
     @property
     def pillow_current_level(self) -> int | None:
@@ -797,6 +798,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
                     if specialization == "pillow":
                         self._pillow_device_id = device_info.get("deviceId")
+                        self._has_pillow_device = True  # Set persistent flag
                         self._pillow_data = {
                             "currentLevel": device_data.get("currentLevel"),
                             "currentDeviceLevel": device_data.get("currentDeviceLevel"),
@@ -902,10 +904,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
     # Pillow control methods
     async def set_pillow_heating_level(self, level: int) -> None:
         """Set pillow temperature level (-100 to 100)."""
-        if not self._pillow_data:
-            _LOGGER.warning(f"User {self.user_id} has no pillow device")
-            return
-
         # Clamp level to valid range
         level = max(-100, min(100, level))
 
@@ -914,12 +912,19 @@ class EightUser:  # pylint: disable=too-many-public-methods
         await self.device.api_request("PUT", url, data=data)
         _LOGGER.debug(f"User {self.user_id}: Set pillow level to {level}")
 
+    async def increment_pillow_heating_level(self, offset: int) -> None:
+        """Increment pillow heating level by offset."""
+        current_level = 0
+        if self._pillow_data:
+            current_level = self._pillow_data.get("currentLevel", 0) or 0
+        new_level = current_level + offset
+        # Clamp to valid range
+        new_level = max(-100, min(100, new_level))
+
+        await self.set_pillow_heating_level(new_level)
+
     async def turn_on_pillow(self) -> None:
         """Turn on the pillow (smart mode)."""
-        if not self._pillow_data:
-            _LOGGER.warning(f"User {self.user_id} has no pillow device")
-            return
-
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow?ignoreDeviceErrors=false"
         data = {"currentState": {"type": "smart"}}
         await self.device.api_request("PUT", url, data=data)
@@ -927,10 +932,6 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def turn_off_pillow(self) -> None:
         """Turn off the pillow."""
-        if not self._pillow_data:
-            _LOGGER.warning(f"User {self.user_id} has no pillow device")
-            return
-
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow?ignoreDeviceErrors=false"
         data = {"currentState": {"type": "off"}}
         await self.device.api_request("PUT", url, data=data)

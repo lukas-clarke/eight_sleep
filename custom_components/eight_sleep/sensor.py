@@ -47,6 +47,7 @@ from .const import (
     NAME_MAP,
     SERVICE_REFRESH_DATA,
     SERVICE_SET_ONE_OFF_ALARM,
+    SERVICE_PILLOW_INCREMENT,
 )
 
 ATTR_ROOM_TEMP = "Room Temperature"
@@ -238,6 +239,11 @@ async def async_setup_entry(
         SERVICE_REFRESH_DATA,
         {},
         "async_refresh_data",
+    )
+    platform.async_register_entity_service(
+        SERVICE_PILLOW_INCREMENT,
+        SERVICE_HEAT_INCREMENT_SCHEMA,
+        "async_pillow_increment",
     )
 
 

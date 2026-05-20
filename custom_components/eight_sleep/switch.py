@@ -218,12 +218,12 @@ class EightPillowSwitchEntity(EightSleepBaseEntity, SwitchEntity):
             self._attr_is_on = False
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        if self._user_obj and self._user_obj.has_pillow:
+        if self._user_obj:
             await self._user_obj.turn_on_pillow()
             await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        if self._user_obj and self._user_obj.has_pillow:
+        if self._user_obj:
             await self._user_obj.turn_off_pillow()
             await self.coordinator.async_request_refresh()
 
