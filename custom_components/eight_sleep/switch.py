@@ -47,6 +47,8 @@ async def async_setup_entry(
     # Track entities per user keyed by alarm_id for dynamic add/remove
     tracked: dict[str, dict[str, EightSwitchEntity]] = {}
 
+    all_entities = []
+
     for user in eight.users.values():
         user_entities: dict[str, EightSwitchEntity] = {}
         for index, alarm in enumerate(user.alarms, start=1):
@@ -54,8 +56,13 @@ async def async_setup_entry(
             user_entities[alarm["id"]] = entity
         tracked[user.user_id] = user_entities
 
+        # Add pillow switch if user has a pillow
+        if user.has_pillow:
+            pillow_switch = EightPillowSwitchEntity(entry, coordinator, eight, user)
+            all_entities.append(pillow_switch)
+
     # Add all initial entities
-    all_entities = [e for user_map in tracked.values() for e in user_map.values()]
+    all_entities.extend([e for user_map in tracked.values() for e in user_map.values()])
     async_add_entities(all_entities)
 
     # Register a listener to dynamically add/remove entities on coordinator refresh
@@ -180,4 +187,47 @@ class EightSwitchEntity(EightSleepBaseEntity, SwitchEntity):
                     if alarm_time:
                         self._attr_name = f"Alarm {alarm_time[:5]}"
                     break
+        super()._handle_coordinator_update()
+
+
+class EightPillowSwitchEntity(EightSleepBaseEntity, SwitchEntity):
+    """Representation of an Eight Sleep pillow switch entity."""
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+        eight: EightSleep,
+        user: EightUser,
+    ) -> None:
+        super().__init__(entry, coordinator, eight, user, "pillow_switch")
+        self._attr_name = "Pillow"
+        self._attr_icon = "mdi:pillow"
+        self._attr_extra_state_attributes = {}
+        self._update_attributes()
+
+    def _update_attributes(self) -> None:
+        if self._user_obj and self._user_obj.has_pillow:
+            state = self._user_obj.pillow_state
+            self._attr_is_on = state is not None and state != "off"
+            self._attr_extra_state_attributes["state"] = state
+            self._attr_extra_state_attributes["current_temp"] = self._user_obj.pillow_current_temp
+            self._attr_extra_state_attributes["target_temp"] = self._user_obj.pillow_target_temp
+            self._attr_extra_state_attributes["current_level"] = self._user_obj.pillow_current_level
+        else:
+            self._attr_is_on = False
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        if self._user_obj and self._user_obj.has_pillow:
+            await self._user_obj.turn_on_pillow()
+            await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        if self._user_obj and self._user_obj.has_pillow:
+            await self._user_obj.turn_off_pillow()
+            await self.coordinator.async_request_refresh()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._update_attributes()
         super()._handle_coordinator_update()

@@ -95,6 +95,10 @@ EIGHT_USER_SENSORS = [
     "presence_end",
     "side",
     "routines",
+    # Pillow sensors
+    "pillow_temperature",
+    "pillow_target_temp",
+    "pillow_state",
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
@@ -315,6 +319,18 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        elif self._sensor == "pillow_temperature":
+            self._attr_icon = "mdi:pillow"
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        elif self._sensor == "pillow_target_temp":
+            self._attr_icon = "mdi:pillow"
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        elif self._sensor == "pillow_state":
+            self._attr_icon = "mdi:pillow"
         elif self._sensor in (NAME_MAP):
             self._attr_native_unit_of_measurement = NAME_MAP[self._sensor].measurement
             self._attr_device_class = NAME_MAP[self._sensor].device_class
@@ -356,6 +372,12 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             return self._user_obj.current_sleep_stage
         if self._sensor == "routines":
             return len(self._user_obj.alarms) if self._user_obj.alarms else 0
+        if self._sensor == "pillow_temperature":
+            return self._user_obj.pillow_current_temp if self._user_obj.has_pillow else None
+        if self._sensor == "pillow_target_temp":
+            return self._user_obj.pillow_target_temp if self._user_obj.has_pillow else None
+        if self._sensor == "pillow_state":
+            return self._user_obj.pillow_state if self._user_obj.has_pillow else None
 
         return None
 
@@ -390,6 +412,15 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                     "thermal": alarm.get("thermal", {}),
                 })
             return {"alarms": alarms_data}
+        elif self._sensor == "pillow_temperature" and self._user_obj and self._user_obj.has_pillow:
+            smart = self._user_obj.pillow_smart_schedule or {}
+            return {
+                "current_level": self._user_obj.pillow_current_level,
+                "current_device_level": self._user_obj.pillow_current_device_level,
+                "bedtime_level": smart.get("bedTimeLevel"),
+                "initial_sleep_level": smart.get("initialSleepLevel"),
+                "final_sleep_level": smart.get("finalSleepLevel"),
+            }
 
         if attr is None:
             # Skip attributes if sensor type doesn't support

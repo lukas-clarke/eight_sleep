@@ -41,6 +41,15 @@ SNOOZE_MINUTES_DESCRIPTION = NumberEntityDescription(
     icon="mdi:alarm-snooze",
 )
 
+PILLOW_LEVEL_DESCRIPTION = NumberEntityDescription(
+    key="pillow_level",
+    native_max_value=100,
+    native_min_value=-100,
+    native_step=5,
+    name="Pillow Level",
+    icon="mdi:pillow",
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -65,6 +74,17 @@ async def async_setup_entry(
                 base_entity=False,
             )
         )
+
+        # Add pillow level number entity if user has a pillow
+        if user.has_pillow:
+            entities.append(
+                EightPillowNumberEntity(
+                    entry,
+                    config_entry_data.user_coordinator,
+                    eight,
+                    user,
+                )
+            )
 
     user = eight.base_user
     if user:
@@ -132,3 +152,28 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity, RestoreEntity):
     async def async_set_native_value(self, value: float) -> None:
         self._set_value_callback(value)
         self.schedule_update_ha_state()
+
+
+class EightPillowNumberEntity(EightSleepBaseEntity, NumberEntity):
+    """Number entity for controlling pillow temperature level."""
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+        eight: EightSleep,
+        user: EightUser,
+    ):
+        super().__init__(entry, coordinator, eight, user, PILLOW_LEVEL_DESCRIPTION.key, base_entity=False)
+        self.entity_description = PILLOW_LEVEL_DESCRIPTION
+
+    @property
+    def native_value(self) -> float | None:
+        if self._user_obj and self._user_obj.has_pillow:
+            return self._user_obj.pillow_current_level
+        return None
+
+    async def async_set_native_value(self, value: float) -> None:
+        if self._user_obj and self._user_obj.has_pillow:
+            await self._user_obj.set_pillow_heating_level(int(value))
+            await self.coordinator.async_request_refresh()

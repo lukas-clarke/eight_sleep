@@ -46,6 +46,62 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
 
+        # Pillow data
+        self._pillow_data: dict[str, Any] | None = None
+        self._pillow_device_id: str | None = None
+
+    @property
+    def has_pillow(self) -> bool:
+        """Return True if user has a pillow device."""
+        return self._pillow_data is not None
+
+    @property
+    def pillow_current_level(self) -> int | None:
+        """Return the current pillow temperature level (-100 to 100)."""
+        if not self._pillow_data:
+            return None
+        return self._pillow_data.get("currentLevel")
+
+    @property
+    def pillow_current_device_level(self) -> int | None:
+        """Return the current pillow device temperature level."""
+        if not self._pillow_data:
+            return None
+        return self._pillow_data.get("currentDeviceLevel")
+
+    @property
+    def pillow_current_temp(self) -> float | None:
+        """Return the current pillow temperature in Celsius."""
+        level = self.pillow_current_device_level
+        if level is None:
+            return None
+        return heating_level_to_temp(level, "c")
+
+    @property
+    def pillow_target_temp(self) -> float | None:
+        """Return the pillow target temperature (what it's set to)."""
+        if not self._pillow_data:
+            return None
+        level = self._pillow_data.get("currentLevel")
+        if level is None:
+            return None
+        return heating_level_to_temp(level, "c")
+
+    @property
+    def pillow_state(self) -> str | None:
+        """Return the current pillow state (on/off/smart)."""
+        if not self._pillow_data:
+            return None
+        current_state = self._pillow_data.get("currentState", {})
+        return current_state.get("type")
+
+    @property
+    def pillow_smart_schedule(self) -> dict[str, Any] | None:
+        """Return the pillow smart schedule settings."""
+        if not self._pillow_data:
+            return None
+        return self._pillow_data.get("smart")
+
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
         if not self.smart_schedule:
@@ -717,13 +773,47 @@ class EightUser:  # pylint: disable=too-many-public-methods
                     self.current_side_temp = heating_level_to_temp(int(level), "c")
                 else:
                     self.current_side_temp = None
-                
+
                 # Update smart schedule (Autopilot)
                 self.smart_schedule = resp.get("smart")
                 _LOGGER.debug(f"User {self.user_id} Smart Schedule: {self.smart_schedule}")
 
         except Exception as e:
             _LOGGER.warning(f"Error fetching temperature data for {self.user_id}: {e}")
+
+        # Fetch pillow data from /temperature/all endpoint
+        await self._update_pillow_data()
+
+    async def _update_pillow_data(self) -> None:
+        """Fetch pillow temperature data from the /temperature/all endpoint."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/all"
+        try:
+            resp = await self.device.api_request("GET", url)
+            if resp and isinstance(resp, dict):
+                devices = resp.get("devices", [])
+                for device_data in devices:
+                    device_info = device_data.get("device", {})
+                    specialization = device_info.get("specialization", "")
+
+                    if specialization == "pillow":
+                        self._pillow_device_id = device_info.get("deviceId")
+                        self._pillow_data = {
+                            "currentLevel": device_data.get("currentLevel"),
+                            "currentDeviceLevel": device_data.get("currentDeviceLevel"),
+                            "currentState": device_data.get("currentState", {}),
+                            "smart": device_data.get("smart", {}),
+                            "overrideLevels": device_data.get("overrideLevels", {}),
+                        }
+                        _LOGGER.debug(f"User {self.user_id} Pillow Data: {self._pillow_data}")
+                        break
+                else:
+                    # No pillow found
+                    self._pillow_data = None
+                    self._pillow_device_id = None
+        except Exception as e:
+            _LOGGER.warning(f"Error fetching pillow data for {self.user_id}: {e}")
+            self._pillow_data = None
+            self._pillow_device_id = None
 
 
     async def set_bed_side(self, side) -> None:
@@ -808,6 +898,43 @@ class EightUser:  # pylint: disable=too-many-public-methods
             _LOGGER.warning(f"ValueError converting current device level for user {self.user_id}: {e} - Response: {resp}")
             return None
         # RequestError will be raised by api_request if the call itself fails
+
+    # Pillow control methods
+    async def set_pillow_heating_level(self, level: int) -> None:
+        """Set pillow temperature level (-100 to 100)."""
+        if not self._pillow_data:
+            _LOGGER.warning(f"User {self.user_id} has no pillow device")
+            return
+
+        # Clamp level to valid range
+        level = max(-100, min(100, level))
+
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow?ignoreDeviceErrors=false"
+        data = {"currentLevel": level}
+        await self.device.api_request("PUT", url, data=data)
+        _LOGGER.debug(f"User {self.user_id}: Set pillow level to {level}")
+
+    async def turn_on_pillow(self) -> None:
+        """Turn on the pillow (smart mode)."""
+        if not self._pillow_data:
+            _LOGGER.warning(f"User {self.user_id} has no pillow device")
+            return
+
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow?ignoreDeviceErrors=false"
+        data = {"currentState": {"type": "smart"}}
+        await self.device.api_request("PUT", url, data=data)
+        _LOGGER.debug(f"User {self.user_id}: Turned on pillow")
+
+    async def turn_off_pillow(self) -> None:
+        """Turn off the pillow."""
+        if not self._pillow_data:
+            _LOGGER.warning(f"User {self.user_id} has no pillow device")
+            return
+
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow?ignoreDeviceErrors=false"
+        data = {"currentState": {"type": "off"}}
+        await self.device.api_request("PUT", url, data=data)
+        _LOGGER.debug(f"User {self.user_id}: Turned off pillow")
 
     async def prime_pod(self):
         url = APP_API_URL + f"v1/devices/{self.device.device_id}/priming/tasks"
