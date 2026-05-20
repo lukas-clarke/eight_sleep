@@ -59,6 +59,20 @@ async def async_setup_entry(
         for user in eight.users.values()
     ]
 
+    # Add pillow climate entities for users with pillows
+    for user in eight.users.values():
+        if user.has_pillow:
+            entities.append(
+                EightPillowThermostat(
+                    entry,
+                    config_entry_data.user_coordinator,
+                    eight,
+                    user,
+                    "pillow_climate",
+                    hass,
+                )
+            )
+
     async_add_entities(entities)
 
 
@@ -263,4 +277,148 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         await self._user_obj.set_heating_level(level, DEFAULT_DURATION)
         await self._eight.update_device_data()
         # Refresh state
+        await self.coordinator.async_refresh()
+
+
+class EightPillowThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
+    """Representation of an Eight Sleep Pillow Thermostat device."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Pillow Climate"
+    _attr_hvac_modes = [HVACMode.HEAT_COOL, HVACMode.OFF]
+    _attr_target_temperature_step = TEMP_STEP
+    _attr_supported_features = (
+        ClimateEntityFeature.TURN_ON
+        | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.TARGET_TEMPERATURE
+    )
+    _enable_turn_on_off_backwards_compatibility = False
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+        eight: EightSleep,
+        user: EightUser,
+        sensor: str,
+        hass: HomeAssistant,
+    ) -> None:
+        """Initialize the pillow thermostat."""
+        super().__init__(entry, coordinator, eight, user, sensor)
+        self._attr_temperature_unit = hass.config.units.temperature_unit
+        if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
+            self._attr_min_temp = MIN_TEMP_C
+            self._attr_max_temp = MAX_TEMP_C
+        else:
+            self._attr_min_temp = MIN_TEMP_F
+            self._attr_max_temp = MAX_TEMP_F
+
+        # Initialize target temperature from pillow data if on
+        if user.pillow_state and user.pillow_state != "off":
+            level = user.pillow_current_level
+            if level is not None:
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                self._attr_target_temperature = heating_level_to_temp(level, unit)
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity added to Home Assistant and restore previous temperature."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state:
+            temp = last_state.attributes.get(ATTR_TEMPERATURE)
+            if temp is not None:
+                try:
+                    self._attr_target_temperature = float(temp)
+                except (ValueError, TypeError):
+                    pass
+
+    @property
+    def current_temperature(self) -> float | None:
+        """Return the current pillow temperature."""
+        if not self._user_obj:
+            return None
+        return self._user_obj.pillow_current_temp
+
+    @property
+    def hvac_mode(self) -> HVACMode:
+        """Return current operation mode."""
+        if self._user_obj and self._user_obj.pillow_state and self._user_obj.pillow_state != "off":
+            return HVACMode.HEAT_COOL
+        return HVACMode.OFF
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        """Return the current running hvac operation."""
+        if not self._user_obj:
+            return None
+
+        state = self._user_obj.pillow_state
+        if not state or state == "off":
+            return HVACAction.OFF
+
+        # Pillow doesn't have separate heating/cooling indicators, show as idle when on
+        return HVACAction.IDLE
+
+    @property
+    def target_temperature(self) -> float | None:
+        """Return the temperature we try to reach."""
+        if self.hvac_mode == HVACMode.OFF:
+            return self._attr_target_temperature
+
+        if self._user_obj:
+            level = self._user_obj.pillow_current_level
+            if level is not None:
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                return heating_level_to_temp(level, unit)
+        return self._attr_target_temperature
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.hvac_mode != HVACMode.OFF and self._user_obj:
+            level = self._user_obj.pillow_current_level
+            if level is not None:
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                new_target = heating_level_to_temp(level, unit)
+                if self._attr_target_temperature != new_target:
+                    self._attr_target_temperature = new_target
+        super()._handle_coordinator_update()
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Set HVAC mode (heat_cool or off)."""
+        if not self._user_obj:
+            return
+
+        if hvac_mode == HVACMode.OFF:
+            await self._user_obj.turn_off_pillow()
+        else:
+            await self._user_obj.turn_on_pillow()
+            if self._attr_target_temperature is not None:
+                await self.async_set_temperature(temperature=self._attr_target_temperature)
+
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Set new target temperature."""
+        if not self._user_obj:
+            return
+
+        if ATTR_TEMPERATURE not in kwargs:
+            return
+
+        temperature = kwargs[ATTR_TEMPERATURE]
+        if temperature < self.min_temp or temperature > self.max_temp:
+            _LOGGER.warning(
+                "Pillow temperature %s out of range (min: %s, max: %s)",
+                temperature,
+                self.min_temp,
+                self.max_temp,
+            )
+            return
+
+        self._attr_target_temperature = temperature
+
+        unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+        level = temp_to_heating_level(temperature, unit)
+
+        await self._user_obj.set_pillow_heating_level(level)
         await self.coordinator.async_refresh()
