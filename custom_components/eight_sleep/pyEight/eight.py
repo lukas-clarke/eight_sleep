@@ -298,16 +298,31 @@ class EightSleep:
         user = next(iter(self.users.values()))
         url = f"{APP_API_URL}v1/users/{user.user_id}/audio/player"
 
+        # Direct request, not api_request(): a 404 here means "no speaker",
+        # which api_request() would log at ERROR every call.
+        token_data = await self.token
+        headers = dict(DEFAULT_API_HEADERS)
+        headers["authorization"] = f"Bearer {token_data.bearer_token}"
+
+        assert self._api_session
         try:
-            response = await self.api_request("get", url)
-            # If we get a response with hardwareInfo, speaker is available
-            if response and response.get("hardwareInfo"):
-                _LOGGER.debug(f"Speaker detected via probe: {response.get('hardwareInfo', {}).get('sku')}")
-                return True
-            return False
-        except RequestError as e:
+            resp = await self._api_session.request(
+                "get", url, headers=headers, timeout=CLIENT_TIMEOUT
+            )
+            if resp.status == 404:
+                return False  # expected: no speaker
+            resp.raise_for_status()
+            data = await resp.json()
+        except (ClientError, asyncio.TimeoutError) as e:
             _LOGGER.debug(f"Speaker probe failed (expected if no speaker): {e}")
             return False
+
+        # If we get a response with hardwareInfo, speaker is available
+        hardware_info = data.get("hardwareInfo")
+        if hardware_info:
+            _LOGGER.debug(f"Speaker detected via probe: {hardware_info.get('sku')}")
+            return True
+        return False
 
     async def update_speaker_data(self) -> None:
         """Update data for the speaker."""
@@ -330,10 +345,8 @@ class EightSleep:
         await self.update_device_data()
         await self.assign_users()
 
-        # If speaker not detected via feature flag, try probe-based detection
-        # This handles Pod 4 hub + Pod 5 bed platform combinations
-        if not self._has_speaker:
-            self._has_speaker = await self._probe_speaker_availability()
+        # Probe authoritatively; the "audio" feature flag can't be trusted.
+        self._has_speaker = await self._probe_speaker_availability()
 
         # Fetch audio tracks if speaker available
         if self._has_speaker and self.speaker_user:
@@ -417,9 +430,6 @@ class EightSleep:
 
         if "elevation" in data["features"]:
             self._has_base = True
-
-        if "audio" in data["features"]:
-            self._has_speaker = True
 
         _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
 
