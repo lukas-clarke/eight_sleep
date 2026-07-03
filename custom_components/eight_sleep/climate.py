@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from time import monotonic
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -38,6 +40,10 @@ TEMP_STEP = 1
 
 # Duration for heating/cooling in seconds (2 hours)
 DEFAULT_DURATION = 7200
+
+# Number of seconds after a power command during which the requested on/off state is
+# trusted over the (briefly stale) API state when deciding how to apply a setpoint.
+HVAC_MODE_LIFETIME = 60.0
 
 
 async def async_setup_entry(
@@ -87,6 +93,11 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
     ) -> None:
         """Initialize the thermostat."""
         super().__init__(entry, coordinator, eight, user, sensor)
+        # Serialize on/off/set-level API calls so a concurrent "off" + "set
+        # temperature" pair cannot reorder at the Eight Sleep server.
+        self._command_lock = asyncio.Lock()
+        self._pending_hvac_mode: HVACMode | None = None
+        self._pending_hvac_mode_lifetime = 0.0
         # Set temperature unit and ranges based on Home Assistant config
         self._attr_temperature_unit = hass.config.units.temperature_unit
         if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
@@ -202,7 +213,10 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         """Handle updated data from the coordinator."""
         # When ON, sync the API's target temperature to our local storage
         # so we persist Autopilot changes if the user turns the device off.
-        if self.hvac_mode != HVACMode.OFF:
+        # Skip while a power-off is pending: `bed_state_type` can briefly still read ON
+        # after `turn_off_side()`, and a stale API value must not clobber a setpoint the
+        # user just requested (e.g. Apple HomeKit's temperature sent alongside "off").
+        if self.hvac_mode != HVACMode.OFF and not self._should_defer_temperature():
              # Logic to read current target from API and update _attr_target_temperature
             heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
             raw_target_temp = self._eight.device_data.get(heating_level_key)
@@ -218,19 +232,62 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
                     pass
         super()._handle_coordinator_update()
 
+    def _record_pending_hvac_mode(self, hvac_mode: HVACMode | None) -> None:
+        """Remember the last requested power state for a short grace period."""
+        # `turn_on_side()`/`turn_off_side()` do not update `bed_state_type` locally, so the
+        # API state is briefly stale after a command. During that window we trust the
+        # requested state when deciding how to apply a setpoint (see
+        # `_should_defer_temperature`).
+        self._pending_hvac_mode = hvac_mode
+        self._pending_hvac_mode_lifetime = (
+            monotonic() + HVAC_MODE_LIFETIME if hvac_mode is not None else 0.0
+        )
+
+    def _should_defer_temperature(self) -> bool:
+        """Return True when a setpoint should be stored without powering the side on."""
+        # Apple HomeKit turns a thermostat off by sending an "off" mode together with a target
+        # temperature. Because `set_heating_level()` always turns the side on, applying that
+        # temperature would immediately re-enable the side. When the side is off (or was just
+        # commanded off) we only remember the setpoint for the next power-on.
+        if monotonic() < self._pending_hvac_mode_lifetime:
+            return self._pending_hvac_mode == HVACMode.OFF
+        return self._user_obj is not None and self._user_obj.bed_state_type == "off"
+
+    async def _async_apply_heating_level(self, temperature: float) -> None:
+        """Push a target temperature to the API, turning the side on."""
+        self._attr_target_temperature = temperature
+
+        unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+        level = temp_to_heating_level(temperature, unit)
+
+        # Set temperature level with default duration
+        await self._user_obj.set_heating_level(level, DEFAULT_DURATION)
+        await self._eight.update_device_data()
+        # Refresh state
+        await self.coordinator.async_refresh()
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode (heat_cool or off)."""
         if not self._user_obj:
             return
 
-        if hvac_mode == HVACMode.OFF:
-            await self._user_obj.turn_off_side()
-        else:
-            await self._user_obj.turn_on_side()
-            # Restore the target temperature if we have one
-            if self._attr_target_temperature is not None:
-                _LOGGER.debug(f"Turn On: Restoring target temperature to {self._attr_target_temperature}")
-                await self.async_set_temperature(temperature=self._attr_target_temperature)
+        # Record the intent synchronously so a concurrent `async_set_temperature`
+        # (e.g. Apple HomeKit sends both) sees it before deciding whether to power on.
+        self._record_pending_hvac_mode(hvac_mode)
+        try:
+            async with self._command_lock:
+                if hvac_mode == HVACMode.OFF:
+                    await self._user_obj.turn_off_side()
+                else:
+                    await self._user_obj.turn_on_side()
+                    # Restore the target temperature if we have one
+                    if self._attr_target_temperature is not None:
+                        _LOGGER.debug("Turn On: Restoring target temperature to %s", self._attr_target_temperature)
+                        await self._async_apply_heating_level(self._attr_target_temperature)
+        except Exception:
+            # On failure, forget the intent so setpoints fall back to real state.
+            self._record_pending_hvac_mode(None)
+            raise
 
         # Refresh state
         await self.coordinator.async_request_refresh()
@@ -256,11 +313,9 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         # Save target temperature
         self._attr_target_temperature = temperature
 
-        unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-        level = temp_to_heating_level(temperature, unit)
-
-        # Set temperature level with default duration
-        await self._user_obj.set_heating_level(level, DEFAULT_DURATION)
-        await self._eight.update_device_data()
-        # Refresh state
-        await self.coordinator.async_refresh()
+        async with self._command_lock:
+            if self._should_defer_temperature():
+                _LOGGER.debug("Set Temperature (OFF): storing %s without powering on", temperature)
+                self.async_write_ha_state()
+                return
+            await self._async_apply_heating_level(temperature)
