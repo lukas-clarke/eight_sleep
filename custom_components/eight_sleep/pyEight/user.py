@@ -742,8 +742,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         data = await self.device.api_request("GET", url)
         return data["currentState"]["type"]
 
-    async def set_heating_level(self, level: int, duration: int = 0) -> None:
-        """Update heating data json."""
+    async def set_heating_level(self, level: int, duration: int = 0, *, power_on: bool = True) -> None:
+        """Update heating data, optionally powering on first."""
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
         data_for_duration = {"timeBased": {"level": level, "durationSeconds": duration}}
         data_for_level = {"currentLevel": level}
@@ -752,7 +752,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         # Catch bad high inputs
         level = min(100, level)
 
-        await self.turn_on_side()  # Turn on side before setting temperature
+        if power_on:
+            await self.turn_on_side()
         await self.device.api_request(
             "PUT", url, data=data_for_level
         )  # Set heating level before duration

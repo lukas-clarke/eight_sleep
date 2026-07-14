@@ -58,6 +58,18 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
         # Call 3: set_heating_level (timeBased)
         self.assertEqual(calls[2], call('PUT', expected_url, data={'timeBased': {'level': 50, 'durationSeconds': 7200}}))
 
+    async def test_set_heating_level_without_powering_on(self):
+        self.mock_eight_device.api_request = AsyncMock(return_value={})
+
+        await self.user.set_heating_level(level=50, duration=7200, power_on=False)
+
+        expected_url = f"{APP_API_URL}v1/users/{self.user_id}/temperature"
+        self.assertEqual(self.mock_eight_device.api_request.call_count, 2)
+
+        calls = self.mock_eight_device.api_request.call_args_list
+        self.assertEqual(calls[0], call('PUT', expected_url, data={'currentLevel': 50}))
+        self.assertEqual(calls[1], call('PUT', expected_url, data={'timeBased': {'level': 50, 'durationSeconds': 7200}}))
+
     @patch('custom_components.eight_sleep.pyEight.user.datetime') # Mock datetime within user.py
     async def test_set_away_mode_start(self, mock_datetime):
         self.mock_eight_device.api_request = AsyncMock(return_value={})
