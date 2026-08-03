@@ -11,7 +11,6 @@ MINOR_VERSION = 0
 SUB_MINOR_VERSION = 18
 __version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}.{SUB_MINOR_VERSION}"
 
-DEFAULT_TIMEOUT = 240
 DATE_TIME_ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 DATE_FORMAT = "%Y-%m-%d"
 
@@ -49,7 +48,7 @@ DEFAULT_AUTH_HEADERS = {
     "accept-encoding": "gzip",
     "accept": "application/json",
 }
-DEFAULT_TIMEOUT = 2400
+DEFAULT_TIMEOUT = 20
 
 
 TEMPERATURE_JSON = """{"currentLevel":{level}}"""
