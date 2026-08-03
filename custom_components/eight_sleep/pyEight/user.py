@@ -106,13 +106,14 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return the timeseries for the latest trend."""
         if not self.trends:
             return None
-        return self.trends[-1].get("sessions", [{}])[-1].get("timeseries", {})
+        sessions = self.trends[-1].get("sessions") or [{}]
+        return sessions[-1].get("timeseries", {})
 
     def _get_current_trend_property_value(self, key: str) -> int | float | None:
         """Get current property from trends."""
         if (
             not (timeseries_data := self._trend_timeseries())
-            or timeseries_data.get(key) is None
+            or not timeseries_data.get(key)
         ):
             return None
         return timeseries_data[key][-1][1]
@@ -219,7 +220,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         where no HR data was recorded in the current session.
         """
         timeseries = self._trend_timeseries()
-        if not timeseries or "heartRate" not in timeseries:
+        if not timeseries or not timeseries.get("heartRate"):
             return False
 
         heart_rate_entry = timeseries["heartRate"][-1]
@@ -466,7 +467,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def current_room_temp(self) -> int | float | None:
         """Return current room temperature for in-progress session."""
         timeseries = self._trend_timeseries()
-        if timeseries and "tempRoomC" in timeseries:
+        if timeseries and timeseries.get("tempRoomC"):
             return timeseries["tempRoomC"][-1][1]
         return None
 
@@ -484,7 +485,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
     def current_heart_rate(self) -> int | float | None:
         """Return current heart rate for in-progress session."""
         timeseries = self._trend_timeseries()
-        if timeseries and "heartRate" in timeseries:
+        if timeseries and timeseries.get("heartRate"):
             return timeseries["heartRate"][-1][1]
         return None
 
