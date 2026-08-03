@@ -1005,7 +1005,19 @@ class EightUser:  # pylint: disable=too-many-public-methods
         }
         """
         url = APP_API_URL + f"v2/users/{self.user_id}/alarms"
-        resp = await self.device.api_request("GET", url)
+        try:
+            resp = await self.device.api_request("GET", url)
+        except RequestError as err:
+            # Accounts without an active subscription get 403 "subscription
+            # required" from the alarms API. Propagating the error here kills
+            # the whole user coordinator on every refresh (#122), taking down
+            # climate/sensors that don't need a subscription at all. Degrade
+            # gracefully instead: no alarm data, everything else keeps working.
+            _LOGGER.debug("Alarms unavailable for user %s: %s", self.user_id, err)
+            self.alarms = []
+            self.next_alarm = None
+            self.next_alarm_id = None
+            return
 
         self.alarms = resp.get("alarms", [])
 
