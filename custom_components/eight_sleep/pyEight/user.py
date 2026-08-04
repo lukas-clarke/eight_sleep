@@ -979,6 +979,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         trend_data = await self.device.api_request("get", url, params=params)
         self.trends = trend_data.get("days", [])
 
+    @staticmethod
+    def _is_subscription_required_error(err: RequestError) -> bool:
+        """Return True for the 403 "subscription required" alarms API error."""
+        if err.status != 403:
+            return False
+        if not isinstance(err.error_details, dict):
+            return False
+        return "subscription" in str(err.error_details.get("message", "")).lower()
+
     async def update_routines_data(self) -> None:
         """Update alarm data from the new /v2/alarms endpoint.
 
@@ -1008,6 +1017,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         try:
             resp = await self.device.api_request("GET", url)
         except RequestError as err:
+            if not self._is_subscription_required_error(err):
+                raise
             # Accounts without an active subscription get 403 "subscription
             # required" from the alarms API. Propagating the error here kills
             # the whole user coordinator on every refresh (#122), taking down
