@@ -214,7 +214,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
-            name=f"{user.user_profile['firstName']}'s Eight Sleep Side",
+            name=f"{(user.user_profile or {}).get('firstName') or user.side or 'Eight Sleep'}'s Eight Sleep Side",
             via_device=(DOMAIN, _get_device_unique_id(eight)),
             **device_data,
         )

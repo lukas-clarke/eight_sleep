@@ -425,10 +425,11 @@ class EightSleep:
         """Manage the device json list."""
         self._device_json_list = [data, *self._device_json_list][:10]
 
-        if "cooling" in data["features"]:
+        features = data.get("features") or []
+        if "cooling" in features:
             self._is_pod = True
 
-        if "elevation" in data["features"]:
+        if "elevation" in features:
             self._has_base = True
 
         _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
@@ -438,7 +439,10 @@ class EightSleep:
         url = f"{CLIENT_API_URL}/users/me"
         dlist = await self.api_request("get", url)
 
-        self.device_id =  dlist["user"]["devices"][0]
+        devices = (dlist.get("user") or {}).get("devices") or []
+        if not devices:
+            raise RequestError("No devices associated with this Eight Sleep account")
+        self.device_id = devices[0]
 
     async def update_device_data(self) -> None:
         """Update device data json."""
