@@ -355,7 +355,9 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if self._sensor == "sleep_stage":
             return self._user_obj.current_sleep_stage
         if self._sensor == "routines":
-            return len(self._user_obj.alarms) if self._user_obj.alarms else 0
+            alarms = len(self._user_obj.alarms) if self._user_obj.alarms else 0
+            schedules = len(getattr(self._user_obj, "bedtime_schedules", []) or [])
+            return alarms + schedules
 
         return None
 
@@ -389,7 +391,25 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
                     "vibration": alarm.get("vibration", {}),
                     "thermal": alarm.get("thermal", {}),
                 })
-            return {"alarms": alarms_data}
+            schedules_data = []
+            for sched in getattr(self._user_obj, "bedtime_schedules", []) or []:
+                start = sched.get("startSettings", {})
+                days = [day.capitalize() for day in sched.get("days", [])]
+                schedules_data.append({
+                    "id": sched.get("id"),
+                    "time": sched.get("time"),
+                    "enabled": sched.get("enabled", False),
+                    "days": days,
+                    "bedtime_level": start.get("bedtime"),
+                    "pillow_bedtime_level": start.get("pillowBedtime"),
+                    "elevation_preset": start.get("elevationPreset"),
+                    "audio": start.get("audioSettings", {}),
+                })
+            return {
+                "alarms": alarms_data,
+                "bedtime_schedules": schedules_data,
+                "schedule_type": getattr(self._user_obj, "schedule_type", None),
+            }
 
         if attr is None:
             # Skip attributes if sensor type doesn't support
