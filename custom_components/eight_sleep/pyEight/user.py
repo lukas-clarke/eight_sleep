@@ -718,9 +718,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     @property
     def pillow_device(self) -> dict[str, Any]:
-        """Return the pillow entry from the last fetch, or an empty dict."""
+        """Return this user's pillow entry from the last fetch, or an empty dict.
+
+        A shared bed can carry a pillow per side, so the side is matched rather
+        than taking devices[0] -- which is the exact mistake #138 documents in
+        household.get_devices(). Falls back to the single entry when the payload
+        carries no side, so a solo bed still resolves.
+        """
         devices = (self._pillow_data or {}).get("devices") or []
-        return devices[0] if devices else {}
+        if not devices:
+            return {}
+        mine = self.corrected_side_for_key
+        for entry in devices:
+            if (entry.get("device") or {}).get("side") == mine:
+                return entry
+        if len(devices) == 1 and not (devices[0].get("device") or {}).get("side"):
+            return devices[0]
+        _LOGGER.debug(
+            "No pillow on side %s for user %s (%d reported)",
+            mine, self.user_id, len(devices),
+        )
+        return {}
 
     @property
     def has_pillow(self) -> bool:

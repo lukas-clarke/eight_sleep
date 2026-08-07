@@ -247,6 +247,59 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cuerpos[0], {"currentLevel": 100})
         self.assertEqual(cuerpos[1], {"currentLevel": -100})
 
+
+    async def test_shared_bed_picks_the_users_own_pillow(self):
+        """A bed with a pillow per side must not resolve to devices[0]."""
+        resp = {
+            "devices": [
+                {"device": {"deviceId": "p_right", "side": "right", "specialization": "pillow"},
+                 "currentLevel": 80, "currentState": {"type": "smart:bedtime"}},
+                {"device": {"deviceId": "p_left", "side": "left", "specialization": "pillow"},
+                 "currentLevel": 10, "currentState": {"type": "off"}},
+            ]
+        }
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()   # user side is "left"
+
+        self.assertEqual(self.user.pillow_device["device"]["deviceId"], "p_left")
+        self.assertEqual(self.user.pillow_level, 10)
+        self.assertFalse(self.user.pillow_is_on)
+
+    async def test_solo_side_maps_to_left(self):
+        """A solo bed reports side 'solo' but the payload says 'left'."""
+        self.user.side = "solo"
+        resp = {"devices": [{"device": {"side": "left"}, "currentLevel": 5,
+                             "currentState": {"type": "smart:bedtime"}}]}
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertTrue(self.user.has_pillow)
+        self.assertEqual(self.user.pillow_level, 5)
+
+    async def test_pillow_on_the_other_side_only_is_not_mine(self):
+        """A partner's pillow must not be surfaced as this user's."""
+        resp = {"devices": [{"device": {"side": "right"}, "currentLevel": 40,
+                             "currentState": {"type": "smart:bedtime"}}]}
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()   # user side is "left"
+
+        self.assertFalse(self.user.has_pillow)
+        self.assertIsNone(self.user.pillow_level)
+
+    async def test_payload_without_side_still_resolves(self):
+        """Defensive: a single entry with no side info still counts as mine."""
+        resp = {"devices": [{"device": {}, "currentLevel": 7,
+                             "currentState": {"type": "smart:bedtime"}}]}
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertTrue(self.user.has_pillow)
+        self.assertEqual(self.user.pillow_level, 7)
+
     async def test_turn_on_and_off_use_the_pillow_route(self):
         self.mock_eight_device.api_request = AsyncMock()
 
