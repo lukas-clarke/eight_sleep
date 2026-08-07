@@ -150,6 +150,12 @@ def _pillow_resp():
     return {
         "devices": [
             {
+                "device": {"deviceId": "pod_1", "side": "left", "specialization": "pod"},
+                "currentLevel": -25,
+                "currentState": {"type": "smart:bedtime"},
+                "smart": {"bedTimeLevel": 95, "initialSleepLevel": -3, "finalSleepLevel": 7},
+            },
+            {
                 "device": {"deviceId": "pillow_1", "side": "left", "specialization": "pillow"},
                 "currentLevel": 10,
                 "currentDeviceLevel": -28,
@@ -169,7 +175,7 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         self.mock_eight_device = AsyncMock(spec=EightSleep)
         self.mock_eight_device.timezone = "America/New_York"
         self.mock_eight_device.device_data = {}
-        self.mock_eight_device.device_id = "fake_device_id"
+        self.mock_eight_device.device_id = "pod_1"
         self.user = EightUser(self.mock_eight_device, "test_user_123", "left")
 
     async def test_no_pillow_before_any_fetch(self):
@@ -187,7 +193,7 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.user.pillow_state, "smart:bedtime")
         self.assertTrue(self.user.pillow_is_on)
         url = self.mock_eight_device.api_request.await_args[0][1]
-        self.assertTrue(url.endswith("/temperature/pillow"))
+        self.assertTrue(url.endswith("/temperature/all"))
 
     async def test_bed_without_pillow_reports_none(self):
         """An empty devices list must leave has_pillow False, not raise."""
@@ -207,7 +213,10 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.user.has_pillow)
 
     async def test_pillow_off_reports_not_on(self):
-        resp = {"devices": [{"device": {}, "currentLevel": 0, "currentState": {"type": "off"}}]}
+        resp = {"devices": [{"device": {"deviceId": "pod_1", "specialization": "pod"}, "currentLevel": 0,
+                             "currentState": {"type": "off"}},
+                            {"device": {"specialization": "pillow"}, "currentLevel": 0,
+                             "currentState": {"type": "off"}}]}
         self.mock_eight_device.api_request = AsyncMock(return_value=resp)
 
         await self.user.update_pillow_data()
@@ -219,7 +228,10 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         """Writing a level to an off pillow is a silent no-op at the API."""
         self.mock_eight_device.api_request = AsyncMock(return_value=_pillow_resp())
         await self.user.update_pillow_data()
-        self.user._pillow_data["devices"][0]["currentState"] = {"type": "off"}
+        # devices[0] es el pod; apagar la ALMOHADA, no el pod.
+        almohada = next(d for d in self.user._pillow_data["devices"]
+                        if d["device"].get("specialization") == "pillow")
+        almohada["currentState"] = {"type": "off"}
         self.mock_eight_device.api_request = AsyncMock()
 
         await self.user.set_pillow_level(20)
@@ -252,6 +264,8 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
         """A bed with a pillow per side must not resolve to devices[0]."""
         resp = {
             "devices": [
+                {"device": {"deviceId": "pod_1", "side": "left", "specialization": "pod"},
+                 "currentLevel": 0, "currentState": {"type": "off"}},
                 {"device": {"deviceId": "p_right", "side": "right", "specialization": "pillow"},
                  "currentLevel": 80, "currentState": {"type": "smart:bedtime"}},
                 {"device": {"deviceId": "p_left", "side": "left", "specialization": "pillow"},
@@ -269,7 +283,9 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
     async def test_solo_side_maps_to_left(self):
         """A solo bed reports side 'solo' but the payload says 'left'."""
         self.user.side = "solo"
-        resp = {"devices": [{"device": {"side": "left"}, "currentLevel": 5,
+        resp = {"devices": [{"device": {"deviceId": "pod_1", "specialization": "pod"}, "currentLevel": 0,
+                             "currentState": {"type": "off"}},
+                            {"device": {"side": "left", "specialization": "pillow"}, "currentLevel": 5,
                              "currentState": {"type": "smart:bedtime"}}]}
         self.mock_eight_device.api_request = AsyncMock(return_value=resp)
 
@@ -280,7 +296,9 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
 
     async def test_pillow_on_the_other_side_only_is_not_mine(self):
         """A partner's pillow must not be surfaced as this user's."""
-        resp = {"devices": [{"device": {"side": "right"}, "currentLevel": 40,
+        resp = {"devices": [{"device": {"deviceId": "pod_1", "specialization": "pod"}, "currentLevel": 0,
+                             "currentState": {"type": "off"}},
+                            {"device": {"side": "right", "specialization": "pillow"}, "currentLevel": 40,
                              "currentState": {"type": "smart:bedtime"}}]}
         self.mock_eight_device.api_request = AsyncMock(return_value=resp)
 
@@ -291,7 +309,9 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
 
     async def test_payload_without_side_still_resolves(self):
         """Defensive: a single entry with no side info still counts as mine."""
-        resp = {"devices": [{"device": {}, "currentLevel": 7,
+        resp = {"devices": [{"device": {"deviceId": "pod_1", "specialization": "pod"}, "currentLevel": 0,
+                             "currentState": {"type": "off"}},
+                            {"device": {"specialization": "pillow"}, "currentLevel": 7,
                              "currentState": {"type": "smart:bedtime"}}]}
         self.mock_eight_device.api_request = AsyncMock(return_value=resp)
 
@@ -299,6 +319,59 @@ class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(self.user.has_pillow)
         self.assertEqual(self.user.pillow_level, 7)
+
+
+    async def test_pillow_from_another_bed_is_not_created_here(self):
+        """The owner is a user on every pod they administer (#146 soak).
+
+        The route is user-scoped, so a Pod 4 entry receives the Pod 5's pillow.
+        Only the bed whose pod is in the payload may claim it.
+        """
+        resp = {
+            "devices": [
+                {"device": {"deviceId": "pod_5", "side": "left", "specialization": "pod"},
+                 "currentLevel": 0, "currentState": {"type": "off"}},
+                {"device": {"deviceId": "pillow_1", "side": "left", "specialization": "pillow"},
+                 "currentLevel": 10, "currentState": {"type": "smart:bedtime"}},
+            ]
+        }
+        self.mock_eight_device.device_id = "pod_4"   # this entry is the other bed
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertFalse(self.user.has_pillow)
+
+    async def test_pillow_claimed_by_the_bed_that_owns_it(self):
+        """The same payload, asked from the Pod 5 entry, does create it."""
+        resp = {
+            "devices": [
+                {"device": {"deviceId": "pod_5", "side": "left", "specialization": "pod"},
+                 "currentLevel": 0, "currentState": {"type": "off"}},
+                {"device": {"deviceId": "pillow_1", "side": "left", "specialization": "pillow"},
+                 "currentLevel": 10, "currentState": {"type": "smart:bedtime"}},
+            ]
+        }
+        self.mock_eight_device.device_id = "pod_5"
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertTrue(self.user.has_pillow)
+        self.assertEqual(self.user.pillow_level, 10)
+
+    async def test_pod_entry_is_never_mistaken_for_the_pillow(self):
+        """`/temperature/all` returns the pod on the same side; filter by type."""
+        resp = {"devices": [
+            {"device": {"deviceId": "pod_1", "side": "left", "specialization": "pod"},
+             "currentLevel": -25, "currentState": {"type": "smart:bedtime"}}
+        ]}
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertFalse(self.user.has_pillow)
+        self.assertIsNone(self.user.pillow_level)
 
     async def test_turn_on_and_off_use_the_pillow_route(self):
         self.mock_eight_device.api_request = AsyncMock()
