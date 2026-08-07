@@ -144,5 +144,65 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
             mock_logger.warning.assert_called_once()
 
 
+class TestEightUserBase(unittest.IsolatedAsyncioTestCase):
+    """Tests for bed base control when base data is missing or partial (#144)."""
+
+    def setUp(self):
+        self.mock_eight_device = AsyncMock(spec=EightSleep)
+        self.mock_eight_device.timezone = "America/New_York"
+        self.mock_eight_device.device_data = {}
+        self.mock_eight_device.device_id = "fake_device_id"
+        self.mock_eight_device.has_base = True
+        self.user = EightUser(self.mock_eight_device, "test_user_123", "left")
+        self.user._base_data = {}
+
+    async def test_set_base_angle_without_base_data_still_sends_request(self):
+        """An empty _base_data must not stop the command from reaching the API.
+
+        `update_base_data` swallows a failed GET /base (the API answers 404
+        BaseOffline when the frame is unplugged), leaving _base_data empty. The
+        optimistic local write then raised KeyError *before* the POST, so the
+        user's request was silently dropped.
+        """
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=10, torso_angle=20)
+
+        self.mock_eight_device.api_request.assert_awaited_once()
+        args, kwargs = self.mock_eight_device.api_request.await_args
+        self.assertEqual(args[0], "POST")
+        self.assertEqual(kwargs["data"]["legAngle"], 10)
+        self.assertEqual(kwargs["data"]["torsoAngle"], 20)
+
+    async def test_set_base_angle_with_partial_base_data(self):
+        """Only one of the two angle keys present must not raise either."""
+        self.user._base_data = {"left": {"leg": {"currentAngle": 0}}}
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=5, torso_angle=15)
+
+        self.mock_eight_device.api_request.assert_awaited_once()
+
+    async def test_set_base_angle_updates_local_state_when_present(self):
+        """The optimistic local update must still happen when the keys exist."""
+        self.user._base_data = {
+            "left": {"leg": {"currentAngle": 0}, "torso": {"currentAngle": 0}}
+        }
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=7, torso_angle=12)
+
+        self.assertEqual(self.user.leg_angle, 7)
+        self.assertEqual(self.user.torso_angle, 12)
+
+    async def test_set_base_preset_without_base_data_still_sends_request(self):
+        """set_base_preset must survive empty base data the same way."""
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_preset("sleep")
+
+        self.mock_eight_device.api_request.assert_awaited_once()
+
+
 if __name__ == '__main__':
     unittest.main()

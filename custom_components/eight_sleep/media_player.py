@@ -75,10 +75,22 @@ class EightSleepMediaPlayer(EightSleepBaseEntity, MediaPlayerEntity):
         self._attr_name = "Speaker"
 
     @property
-    def state(self) -> MediaPlayerState:
+    def available(self) -> bool:
+        """Return whether the speaker has reported any state yet."""
+        return bool(
+            super().available
+            and self._eight.speaker_user
+            and self._eight.speaker_user.player_state
+        )
+
+    @property
+    def state(self) -> MediaPlayerState | None:
         """Return the state of the player."""
+        # MediaPlayerState has no UNAVAILABLE member -- returning one raised
+        # AttributeError on every state write, which HA logs as "Unexpected
+        # error updating listener". Unavailability belongs on `available`.
         if not self._eight.speaker_user or not self._eight.speaker_user.player_state:
-            return MediaPlayerState.UNAVAILABLE
+            return None
 
         state = self._eight.speaker_user.player_state.get("state", "").lower()
         if state == "playing":

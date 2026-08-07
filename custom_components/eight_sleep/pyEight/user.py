@@ -1096,12 +1096,28 @@ class EightUser:  # pylint: disable=too-many-public-methods
                     self.user_id,
                 )
 
+    def _set_base_angle_locally(self, leg_angle: int, torso_angle: int) -> None:
+        """Apply the optimistic angle update to cached base data, if any.
+
+        base_data_for_side returns a throwaway dict when the side is absent, so
+        writing into it would be a no-op that merely looks like an update. Only
+        mutate the real cached side.
+        """
+        side_data = self.base_data.get(self.corrected_side_for_key)
+        if side_data is None:
+            return
+        side_data.setdefault("leg", {})["currentAngle"] = leg_angle
+        side_data.setdefault("torso", {})["currentAngle"] = torso_angle
+
     async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
         """Set the angles of the bed base."""
         if self.device.has_base:
-            # Update the angles locally
-            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
-            self.base_data_for_side["torso"]["currentAngle"] = torso_angle
+            # Update the angles locally, when there is local state to update.
+            # update_base_data() swallows a failed GET /base -- the API answers
+            # 404 BaseOffline while the frame is unplugged -- so _base_data can
+            # be empty or partial. Indexing it blindly raised KeyError *before*
+            # the request below, silently dropping the user's command.
+            self._set_base_angle_locally(leg_angle, torso_angle)
 
             url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
             payload = {
