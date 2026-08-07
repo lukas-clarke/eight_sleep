@@ -49,7 +49,7 @@ async def async_setup_entry(
     config_entry_data: EightSleepConfigEntryData = hass.data[DOMAIN][entry.entry_id]
     eight = config_entry_data.api
 
-    entities = [
+    entities: list[ClimateEntity] = [
         EightSleepThermostat(
             entry,
             config_entry_data.user_coordinator,
@@ -60,6 +60,22 @@ async def async_setup_entry(
         )
         for user in eight.users.values()
     ]
+
+    # A Pod 5 pillow is its own temperature-controlled device. Only users whose
+    # bed actually reported one get the entity; a pillow-less bed answers the
+    # pillow route with an empty device list.
+    entities.extend(
+        EightSleepPillowThermostat(
+            entry,
+            config_entry_data.user_coordinator,
+            eight,
+            user,
+            "pillow_climate",
+            hass,
+        )
+        for user in eight.users.values()
+        if user.has_pillow
+    )
 
     async_add_entities(entities)
 
@@ -371,3 +387,127 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
                 self.async_write_ha_state()
                 return
             await self._async_apply_heating_level(temperature)
+
+
+
+class EightSleepPillowThermostat(EightSleepBaseEntity, ClimateEntity):
+    """The Pod 5 pillow, which heats and cools independently of the pod.
+
+    Deliberately simpler than EightSleepThermostat: the pillow reports the same
+    `currentDeviceLevel` as the pod in the samples gathered so far, so exposing
+    it as `current_temperature` would show a reading that is not the pillow's.
+    Only the target and on/off are surfaced, which is what the API actually
+    attributes to the pillow.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Pillow"
+    _attr_hvac_modes = [HVACMode.HEAT_COOL, HVACMode.OFF]
+    _attr_target_temperature_step = TEMP_STEP
+    _attr_supported_features = (
+        ClimateEntityFeature.TURN_ON
+        | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.TARGET_TEMPERATURE
+    )
+    _enable_turn_on_off_backwards_compatibility = False
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+        eight: EightSleep,
+        user: EightUser,
+        sensor: str,
+        hass: HomeAssistant,
+    ) -> None:
+        """Initialize the pillow thermostat."""
+        super().__init__(entry, coordinator, eight, user, sensor)
+        self._hass = hass
+        # Serialize on/off against set-temperature so the two cannot reorder at
+        # the Eight Sleep server, same reasoning as the pod thermostat.
+        self._command_lock = asyncio.Lock()
+
+    @property
+    def _unit(self) -> str:
+        return convert_hass_temp_unit_to_pyeight_temp_unit(
+            self._hass.config.units.temperature_unit
+        )
+
+    @property
+    def temperature_unit(self) -> str:
+        """Return the unit Home Assistant is configured for."""
+        return self._hass.config.units.temperature_unit
+
+    @property
+    def min_temp(self) -> float:
+        """Return the minimum settable temperature."""
+        if self.temperature_unit == UnitOfTemperature.CELSIUS:
+            return MIN_TEMP_C
+        return MIN_TEMP_F
+
+    @property
+    def max_temp(self) -> float:
+        """Return the maximum settable temperature."""
+        if self.temperature_unit == UnitOfTemperature.CELSIUS:
+            return MAX_TEMP_C
+        return MAX_TEMP_F
+
+    @property
+    def available(self) -> bool:
+        """Only available while the bed keeps reporting a pillow."""
+        return bool(super().available and self._user_obj and self._user_obj.has_pillow)
+
+    @property
+    def hvac_mode(self) -> HVACMode:
+        """Return HEAT_COOL while the pillow is active, OFF otherwise."""
+        if self._user_obj and self._user_obj.pillow_is_on:
+            return HVACMode.HEAT_COOL
+        return HVACMode.OFF
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        """Return whether the pillow is heating, cooling or idle."""
+        if not self._user_obj or not self._user_obj.pillow_is_on:
+            return HVACAction.OFF
+        level = self._user_obj.pillow_level
+        if level is None or level == 0:
+            return HVACAction.IDLE
+        return HVACAction.HEATING if level > 0 else HVACAction.COOLING
+
+    @property
+    def target_temperature(self) -> float | None:
+        """Return the pillow's target temperature."""
+        if not self._user_obj:
+            return None
+        level = self._user_obj.pillow_level
+        if level is None:
+            return None
+        return heating_level_to_temp(level, self._unit)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the raw API values behind the translated ones."""
+        if not self._user_obj:
+            return {}
+        return {
+            "pillow_level": self._user_obj.pillow_level,
+            "pillow_state": self._user_obj.pillow_state,
+        }
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Turn the pillow on or off."""
+        async with self._command_lock:
+            if hvac_mode == HVACMode.OFF:
+                await self._user_obj.turn_off_pillow()
+            else:
+                await self._user_obj.turn_on_pillow()
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Set the pillow's target temperature."""
+        if (target := kwargs.get(ATTR_TEMPERATURE)) is None:
+            return
+        level = temp_to_heating_level(int(target), self._unit)
+        async with self._command_lock:
+            await self._user_obj.set_pillow_level(level)
+        await self.coordinator.async_request_refresh()

@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, timezone # Import datetime for away_mo
 # Assuming similar import structure as test_auth.py
 from custom_components.eight_sleep.pyEight.eight import EightSleep
 from custom_components.eight_sleep.pyEight.user import EightUser
-from custom_components.eight_sleep.pyEight.constants import APP_API_URL # For URL construction
+from custom_components.eight_sleep.pyEight.constants import APP_API_URL
+from custom_components.eight_sleep.pyEight.exceptions import RequestError # For URL construction
 
 class TestEightUser(unittest.IsolatedAsyncioTestCase):
 
@@ -142,6 +143,118 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
             self.user.side = None
             self.assertEqual(self.user.corrected_side_for_key, "left")
             mock_logger.warning.assert_called_once()
+
+
+def _pillow_resp():
+    """Fresh copy per test: these dicts get mutated in place."""
+    return {
+        "devices": [
+            {
+                "device": {"deviceId": "pillow_1", "side": "left", "specialization": "pillow"},
+                "currentLevel": 10,
+                "currentDeviceLevel": -28,
+                "overrideLevels": {},
+                "currentState": {"type": "smart:bedtime"},
+                "smart": {"bedTimeLevel": 17, "initialSleepLevel": -35, "finalSleepLevel": -19},
+            }
+        ],
+        "temperatureSettings": [{"name": "pillow", "bedTimeLevel": 17}],
+    }
+
+
+class TestEightUserPillow(unittest.IsolatedAsyncioTestCase):
+    """Pillow support via /temperature/{pod|pillow|all} (#138)."""
+
+    def setUp(self):
+        self.mock_eight_device = AsyncMock(spec=EightSleep)
+        self.mock_eight_device.timezone = "America/New_York"
+        self.mock_eight_device.device_data = {}
+        self.mock_eight_device.device_id = "fake_device_id"
+        self.user = EightUser(self.mock_eight_device, "test_user_123", "left")
+
+    async def test_no_pillow_before_any_fetch(self):
+        self.assertFalse(self.user.has_pillow)
+        self.assertIsNone(self.user.pillow_level)
+        self.assertFalse(self.user.pillow_is_on)
+
+    async def test_update_pillow_data_populates_state(self):
+        self.mock_eight_device.api_request = AsyncMock(return_value=_pillow_resp())
+
+        await self.user.update_pillow_data()
+
+        self.assertTrue(self.user.has_pillow)
+        self.assertEqual(self.user.pillow_level, 10)
+        self.assertEqual(self.user.pillow_state, "smart:bedtime")
+        self.assertTrue(self.user.pillow_is_on)
+        url = self.mock_eight_device.api_request.await_args[0][1]
+        self.assertTrue(url.endswith("/temperature/pillow"))
+
+    async def test_bed_without_pillow_reports_none(self):
+        """An empty devices list must leave has_pillow False, not raise."""
+        self.mock_eight_device.api_request = AsyncMock(return_value={"devices": []})
+
+        await self.user.update_pillow_data()
+
+        self.assertFalse(self.user.has_pillow)
+        self.assertIsNone(self.user.pillow_level)
+
+    async def test_pillow_fetch_failure_does_not_propagate(self):
+        """A failed pillow lookup must not abort the whole user update."""
+        self.mock_eight_device.api_request = AsyncMock(side_effect=RequestError("boom"))
+
+        await self.user.update_pillow_data()
+
+        self.assertFalse(self.user.has_pillow)
+
+    async def test_pillow_off_reports_not_on(self):
+        resp = {"devices": [{"device": {}, "currentLevel": 0, "currentState": {"type": "off"}}]}
+        self.mock_eight_device.api_request = AsyncMock(return_value=resp)
+
+        await self.user.update_pillow_data()
+
+        self.assertTrue(self.user.has_pillow)
+        self.assertFalse(self.user.pillow_is_on)
+
+    async def test_set_level_powers_on_first_when_off(self):
+        """Writing a level to an off pillow is a silent no-op at the API."""
+        self.mock_eight_device.api_request = AsyncMock(return_value=_pillow_resp())
+        await self.user.update_pillow_data()
+        self.user._pillow_data["devices"][0]["currentState"] = {"type": "off"}
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_pillow_level(20)
+
+        cuerpos = [c.kwargs.get("data") for c in self.mock_eight_device.api_request.await_args_list]
+        self.assertEqual(cuerpos[0], {"currentState": {"type": "smart"}})
+        self.assertEqual(cuerpos[1], {"currentLevel": 20})
+
+    async def test_set_level_skips_power_on_when_already_on(self):
+        self.mock_eight_device.api_request = AsyncMock(return_value=_pillow_resp())
+        await self.user.update_pillow_data()
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_pillow_level(20)
+
+        self.assertEqual(self.mock_eight_device.api_request.await_count, 1)
+
+    async def test_set_level_clamps_to_api_range(self):
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_pillow_level(500, power_on=False)
+        await self.user.set_pillow_level(-500, power_on=False)
+
+        cuerpos = [c.kwargs.get("data") for c in self.mock_eight_device.api_request.await_args_list]
+        self.assertEqual(cuerpos[0], {"currentLevel": 100})
+        self.assertEqual(cuerpos[1], {"currentLevel": -100})
+
+    async def test_turn_on_and_off_use_the_pillow_route(self):
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.turn_on_pillow()
+        await self.user.turn_off_pillow()
+
+        for call_args in self.mock_eight_device.api_request.await_args_list:
+            self.assertTrue(call_args[0][1].endswith("/temperature/pillow"))
 
 
 if __name__ == '__main__':

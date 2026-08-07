@@ -45,6 +45,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self.target_heating_temp = None
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
+        self._pillow_data: dict[str, Any] | None = None
 
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
@@ -698,6 +699,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
         # Update temperature data (current temp, smart schedule, etc.)
         await self._update_temperature_data()
+        await self.update_pillow_data()
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
@@ -705,6 +707,83 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self.target_heating_temp = heating_level_to_temp(
                 self.target_heating_level, "c"
             )
+
+    # ── Pillow (Pod 5 accessory, its own temperature-controlled device) ────────
+    #
+    # The per-specialization route is
+    #   GET|PUT app-api /v1/users/{userId}/temperature/{pod|pillow|all}
+    # and answers `{"devices": [{"device": {...}, "currentLevel": ..., ...}]}`.
+    # Note this is a different shape from plain /temperature, which is why the
+    # pod keeps using its own path untouched.
+
+    @property
+    def pillow_device(self) -> dict[str, Any]:
+        """Return the pillow entry from the last fetch, or an empty dict."""
+        devices = (self._pillow_data or {}).get("devices") or []
+        return devices[0] if devices else {}
+
+    @property
+    def has_pillow(self) -> bool:
+        """Return whether this user's bed reported a pillow."""
+        return bool(self.pillow_device)
+
+    @property
+    def pillow_level(self) -> int | None:
+        """Return the pillow's current level (-100..100), or None if absent."""
+        return self.pillow_device.get("currentLevel") if self.has_pillow else None
+
+    @property
+    def pillow_state(self) -> str | None:
+        """Return the pillow's state type, e.g. 'off' or 'smart:bedtime'."""
+        return (self.pillow_device.get("currentState") or {}).get("type")
+
+    @property
+    def pillow_is_on(self) -> bool:
+        """Return whether the pillow is actively heating or cooling."""
+        state = self.pillow_state
+        return bool(state) and state != "off"
+
+    async def update_pillow_data(self) -> None:
+        """Fetch the pillow's temperature state.
+
+        A bed without a pillow answers with an empty `devices` list, which is
+        how `has_pillow` stays False and no pillow entity is created.
+        """
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow"
+        try:
+            resp = await self.device.api_request("GET", url)
+            self._pillow_data = resp if isinstance(resp, dict) else None
+        except RequestError as err:
+            # Never let a pillow lookup abort the wider user update.
+            _LOGGER.debug("No pillow data for user %s: %s", self.user_id, err)
+            self._pillow_data = None
+
+    async def turn_on_pillow(self) -> None:
+        """Turn the pillow on, mirroring turn_on_side for the pod."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow"
+        await self.device.api_request(
+            "PUT", url, data={"currentState": {"type": "smart"}}
+        )
+
+    async def turn_off_pillow(self) -> None:
+        """Turn the pillow off."""
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow"
+        await self.device.api_request(
+            "PUT", url, data={"currentState": {"type": "off"}}
+        )
+
+    async def set_pillow_level(self, level: int, *, power_on: bool = True) -> None:
+        """Set the pillow level, powering it on first when needed.
+
+        Writing a level to a pillow that is off returns HTTP 200 and does
+        nothing at all, exactly like the pod, so the power-on has to come first
+        or the request is silently a no-op.
+        """
+        level = max(-100, min(100, level))
+        if power_on and not self.pillow_is_on:
+            await self.turn_on_pillow()
+        url = APP_API_URL + f"v1/users/{self.user_id}/temperature/pillow"
+        await self.device.api_request("PUT", url, data={"currentLevel": level})
 
     async def _update_temperature_data(self) -> None:
         """Fetch and update detailed temperature data including smart schedule."""
