@@ -115,6 +115,29 @@ class EightSleep:
         return self._device_json_list[0]
 
     @property
+    def led_brightness(self) -> int | None:
+        """Return the hub's LED brightness (0-100), or None if not reported."""
+        if not self._device_json_list:
+            return None
+        value = self.device_data.get("ledBrightnessLevel")
+        return int(value) if value is not None else None
+
+    async def set_led_brightness(self, level: int) -> None:
+        """Set the hub's LED brightness.
+
+        Verified against a live Pod 5: the device resource accepts a PUT and
+        answers `{"message": "Device successfully updated."}` with the new
+        value reflected on the next read.
+        """
+        level = max(0, min(100, level))
+        url = f"{CLIENT_API_URL}/devices/{self.device_id}"
+        await self.api_request("PUT", url, data={"ledBrightnessLevel": level})
+        # Keep the cached payload in step so the entity does not flip back
+        # until the next coordinator refresh.
+        if self._device_json_list:
+            self._device_json_list[0]["ledBrightnessLevel"] = level
+
+    @property
     def device_data_history(self) -> list[dict]:
         """Return full raw device_data json list."""
         return self._device_json_list
