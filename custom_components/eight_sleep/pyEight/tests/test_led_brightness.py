@@ -76,3 +76,57 @@ class TestLedBrightness(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestLedBrightnessEntityWiring(unittest.IsolatedAsyncioTestCase):
+    """The number entity must not write back to the hub on startup."""
+
+    def test_entity_key_matches_the_displayed_name(self):
+        """EightSleepBaseEntity derives _attr_name from the key and that wins
+        over entity_description.name, so a mismatch would ship a wrong label."""
+        from custom_components.eight_sleep.number import LED_BRIGHTNESS_DESCRIPTION as d
+
+        self.assertEqual(d.key.replace("_", " ").title(), d.name)
+
+    async def test_restore_disabled_does_not_write_on_startup(self):
+        """Restoring would overwrite a change made in the app while HA was down."""
+        from custom_components.eight_sleep.number import EightNumberEntity
+
+        escrito = []
+        ent = EightNumberEntity.__new__(EightNumberEntity)
+        ent._restore_previous = False
+        ent._set_value_callback = escrito.append
+
+        with patch.object(
+            EightNumberEntity, "async_get_last_state", AsyncMock(return_value=None)
+        ) as leer, patch(
+            "custom_components.eight_sleep.EightSleepBaseEntity.async_added_to_hass",
+            AsyncMock(),
+        ):
+            await EightNumberEntity.async_added_to_hass(ent)
+
+        self.assertEqual(escrito, [])
+        leer.assert_not_awaited()
+
+    async def test_restore_enabled_still_writes(self):
+        """The snooze entity relies on this; it must keep working."""
+        from unittest.mock import MagicMock
+
+        from custom_components.eight_sleep.number import EightNumberEntity
+
+        escrito = []
+        ent = EightNumberEntity.__new__(EightNumberEntity)
+        ent._restore_previous = True
+        ent._set_value_callback = escrito.append
+        estado = MagicMock()
+        estado.state = "12"
+
+        with patch.object(
+            EightNumberEntity, "async_get_last_state", AsyncMock(return_value=estado)
+        ), patch(
+            "custom_components.eight_sleep.EightSleepBaseEntity.async_added_to_hass",
+            AsyncMock(),
+        ):
+            await EightNumberEntity.async_added_to_hass(ent)
+
+        self.assertEqual(escrito, [12.0])

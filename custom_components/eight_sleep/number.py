@@ -32,7 +32,7 @@ HEAD_DESCRIPTION = NumberEntityDescription(
 )
 
 LED_BRIGHTNESS_DESCRIPTION = NumberEntityDescription(
-    key="led_brightness",
+    key="hub_light_brightness",
     native_unit_of_measurement="%",
     native_max_value=100,
     native_min_value=0,
@@ -120,6 +120,10 @@ async def async_setup_entry(
                 lambda: eight.led_brightness,
                 set_led_brightness,
                 base_entity=False,
+                # The hub reports the real brightness, so restoring HA's last
+                # value would overwrite a change made in the app while HA was
+                # down -- and would PUT on every restart for no reason.
+                restore_previous=False,
             )
         )
 
@@ -138,15 +142,24 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity, RestoreEntity):
         value_getter: Callable[[], float | None],
         set_value_callback: Callable[[float], None],
         base_entity: bool = True,
+        restore_previous: bool = True,
     ):
         super().__init__(entry, coordinator, eight, user, entity_description.key, base_entity=base_entity)
         self.entity_description = entity_description
         self._value_getter = value_getter
         self._set_value_callback = set_value_callback
+        self._restore_previous = restore_previous
 
     async def async_added_to_hass(self) -> None:
-        """Restore previous value on startup."""
+        """Restore previous value on startup, for values HA alone holds.
+
+        Entities whose value the device itself reports must not restore: doing
+        so writes a stale value back on every restart and silently overrides
+        whatever the user changed in the Eight Sleep app while HA was down.
+        """
         await super().async_added_to_hass()
+        if not self._restore_previous:
+            return
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (None, "unknown", "unavailable"):
             try:
