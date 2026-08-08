@@ -77,5 +77,59 @@ class TestAwayUserNullData(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.user.current_heart_rate)
 
 
+
+class TestBreakdownConsumer(unittest.TestCase):
+    """A breakdown missing "awake" must not blow up the sensor (#52).
+
+    The subtraction guard can now yield a dict without that key, which the old
+    TypeError used to prevent from ever existing. This exercises the real
+    property rather than re-implementing its arithmetic.
+    """
+
+    @staticmethod
+    def _atributos(breakdown):
+        from unittest.mock import MagicMock, PropertyMock
+
+        from custom_components.eight_sleep.sensor import EightUserSensor
+
+        user = MagicMock()
+        type(user).last_values = PropertyMock(return_value={
+            "date": "2026-08-08",
+            "score": 80,
+            "breakdown": breakdown,
+            "tnt": 3,
+            "processing": False,
+            "bed_temp": 20, "room_temp": 21,
+            "resp_rate": 14, "heart_rate": 55,
+        })
+
+        ent = EightUserSensor.__new__(EightUserSensor)
+        ent._sensor = "last_sleep_score"
+        ent._user_obj = user
+        return EightUserSensor.extra_state_attributes.fget(ent)
+
+    def test_without_awake_does_not_raise(self):
+        attrs = self._atributos({"light": 2000, "deep": 1000, "rem": 500})
+
+        self.assertIsNotNone(attrs)
+
+    def test_without_awake_sums_the_sleep_stages(self):
+        attrs = self._atributos({"light": 2000, "deep": 1000, "rem": 500})
+
+        self.assertEqual(attrs["Time Slept"], 3500)
+
+    def test_with_awake_subtracts_it(self):
+        attrs = self._atributos(
+            {"light": 2000, "deep": 1000, "rem": 500, "awake": 600}
+        )
+
+        self.assertEqual(attrs["Time Slept"], 3500)
+
+    def test_no_breakdown_at_all_is_skipped(self):
+        attrs = self._atributos(None)
+
+        self.assertNotIn("Time Slept", attrs)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -410,7 +410,11 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         state_attr[ATTR_PROCESSING] = attr["processing"]
 
         if attr.get("breakdown") is not None:
-            sleep_time = sum(attr["breakdown"].values()) - attr["breakdown"]["awake"]
+            # "awake" is absent when the session reports presence or sleep but
+            # not both, so it cannot be indexed blindly. Treating it as 0 is
+            # right: what remains is the sum of the sleep stages themselves.
+            breakdown = attr["breakdown"]
+            sleep_time = sum(breakdown.values()) - breakdown.get("awake", 0)
             state_attr[ATTR_SLEEP_DUR] = sleep_time
             state_attr[ATTR_LIGHT_PERC] = _get_breakdown_percent(
                 attr, "light", sleep_time
