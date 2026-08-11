@@ -174,11 +174,31 @@ class EightSleep:
         return self._has_speaker
 
     @property
+    def bed_users(self) -> list[EightUser]:
+        """Return only the users actually occupying a side of this device.
+
+        `self.users` also carries users picked up from `awaySides`, which on a
+        pod someone else administers includes the administrator. Those users
+        belong to a different device, so asking them about this one answers
+        about theirs -- see `_probe_speaker_availability`.
+        """
+        if not self._device_json_list:
+            # Device data has not been fetched yet; nothing to filter against.
+            return []
+        sides = {
+            self.device_data.get("leftUserId"),
+            self.device_data.get("rightUserId"),
+        }
+        return [user for user in self.users.values() if user.user_id in sides]
+
+    @property
     def speaker_user(self) -> EightUser | None:
         """Return the user object for speaker API calls."""
-        if self.has_speaker:
-            return next(iter(self.users.values()))
-        return None
+        if not self.has_speaker:
+            return None
+        # Fall back to the old behaviour rather than losing the speaker
+        # outright if the device data has no side assigned yet.
+        return next(iter(self.bed_users or self.users.values()), None)
 
     def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
         """degree_unit can be 'c' or 'f'
@@ -314,11 +334,22 @@ class EightSleep:
 
         The Pod 5 bed platform (with speaker) can be purchased separately
         and used with a Pod 4 hub, so we can't rely on model detection.
+
+        The endpoint is scoped to the *user*, not the device, so it has to be
+        asked of someone occupying a side of this pod. Asking an away user --
+        which on an administered pod means the administrator -- returns the
+        speaker on their own bed, and this device inherits a speaker it does
+        not have.
         """
-        if not self.users:
+        if self._device_json_list:
+            user = next(iter(self.bed_users), None)
+        else:
+            # Device data not fetched yet: keep the old behaviour rather than
+            # reporting "no speaker" for a pod that has one.
+            user = next(iter(self.users.values()), None)
+        if user is None:
             return False
 
-        user = next(iter(self.users.values()))
         url = f"{APP_API_URL}v1/users/{user.user_id}/audio/player"
 
         # Direct request, not api_request(): a 404 here means "no speaker",
