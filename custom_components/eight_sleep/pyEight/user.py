@@ -59,6 +59,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
         except (ValueError, TypeError):
             return None
 
+    @staticmethod
+    def _clean(value: Any) -> Any:
+        """Return None for the literal "None" the API sends for absent values."""
+        return None if value == "None" else value
+
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
         """Get trend value for specified key."""
         if len(self.trends) < trend_num + 1:
@@ -116,7 +121,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
             or not timeseries_data.get(key)
         ):
             return None
-        return timeseries_data[key][-1][1]
+        return self._clean(timeseries_data[key][-1][1])
 
     def _session_date(self, trend_num: int) -> datetime | None:
         """Get session date for given trend."""
@@ -131,13 +136,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return durations of sleep stages for given session."""
         if len(self.trends) < (trend_num + 1):
             return None
+        # An away side reports a session with no durations at all, so the
+        # subtraction below has to tolerate either half being absent instead
+        # of raising TypeError before any sensor is reached (#52).
+        presence = self._get_trend(trend_num, "presenceDuration")
+        slept = self._get_trend(trend_num, "sleepDuration")
+        awake = presence - slept if None not in (presence, slept) else None
         breakdown = {
             "light": self._get_trend(trend_num, "lightDuration"),
             "deep": self._get_trend(trend_num, "deepDuration"),
             "rem": self._get_trend(trend_num, "remDuration"),
-            "awake": self._get_trend(trend_num, "presenceDuration") - self._get_trend(trend_num, "sleepDuration")
+            "awake": awake,
         }
-        return {k: v for k, v in breakdown.items() if v is not None}
+        breakdown = {k: v for k, v in breakdown.items() if v is not None}
+        return breakdown or None
 
     def _session_processing(self, trend_num: int) -> bool | None:
         """Return processing state of given session."""
@@ -468,7 +480,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return current room temperature for in-progress session."""
         timeseries = self._trend_timeseries()
         if timeseries and timeseries.get("tempRoomC"):
-            return timeseries["tempRoomC"][-1][1]
+            return self._clean(timeseries["tempRoomC"][-1][1])
         return None
 
     @property
@@ -486,7 +498,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return current heart rate for in-progress session."""
         timeseries = self._trend_timeseries()
         if timeseries and timeseries.get("heartRate"):
-            return timeseries["heartRate"][-1][1]
+            return self._clean(timeseries["heartRate"][-1][1])
         return None
 
     @property
