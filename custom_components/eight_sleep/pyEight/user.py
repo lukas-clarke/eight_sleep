@@ -970,6 +970,29 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def set_away_mode(self, action: str):
         """Sets the away mode. The action can either be 'start' or 'stop'"""
+        # The away-mode endpoint is user-scoped, but Eight Sleep's backend applies it to
+        # whichever pod is currently the account's "current device" rather than the pod
+        # this user actually belongs to. On accounts with multiple pods this can silently
+        # flip the wrong pod's away mode (see GH issue #116; the PR #109 device-id fix did
+        # not resolve this since it never re-asserts the current device before the call).
+        # Re-sync this user's bed side/current-device first so the away-mode call always
+        # lands on the pod that owns this entity, mirroring the set_bed_side workaround
+        # reported to fix this in practice.
+        if self.side:
+            try:
+                await self.set_bed_side(self.side)
+            except Exception as err:  # noqa: BLE001 - best effort, don't block away mode
+                _LOGGER.warning(
+                    f"User {self.user_id}: Could not sync current device (side '{self.side}') "
+                    f"before setting away mode; on multi-pod accounts this call may target the "
+                    f"wrong pod: {err}"
+                )
+        else:
+            _LOGGER.warning(
+                f"User {self.user_id}: No known bed side; skipping current-device sync before "
+                f"setting away mode. On multi-pod accounts this call may target the wrong pod."
+            )
+
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
         # Setting time to UTC of 24 hours ago to get API to trigger immediately
         now = str(
