@@ -35,6 +35,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.alarms: list[dict[str, Any]] = []
+        self.bedtime_schedules: list[dict[str, Any]] = []
+        self.schedule_type: str | None = None
         self.routines: list[dict[str, Any]] = []  # Kept for backward compat, always empty now
         self.smart_schedule: dict[str, Any] | None = None
         self.next_alarm = None
@@ -734,6 +736,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 # Update smart schedule (Autopilot)
                 self.smart_schedule = resp.get("smart")
                 _LOGGER.debug(f"User {self.user_id} Smart Schedule: {self.smart_schedule}")
+
+                # Bedtime routines migrated here from the retired routines API:
+                # currentSchedule/nextSchedule carry time, days and startSettings
+                # (bed level, pillowBedtime, elevationPreset, audioSettings).
+                self.schedule_type = resp.get("scheduleType")
+                schedules: list[dict[str, Any]] = []
+                seen_ids: set[str] = set()
+                for key in ("currentSchedule", "nextSchedule"):
+                    sched = resp.get(key)
+                    sched_id = (sched or {}).get("id")
+                    if sched and sched_id and sched_id not in seen_ids:
+                        seen_ids.add(sched_id)
+                        schedules.append(sched)
+                self.bedtime_schedules = schedules
 
         except Exception as e:
             _LOGGER.warning(f"Error fetching temperature data for {self.user_id}: {e}")
