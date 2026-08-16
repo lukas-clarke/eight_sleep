@@ -31,6 +31,16 @@ HEAD_DESCRIPTION = NumberEntityDescription(
     icon="mdi:head",
 )
 
+LED_BRIGHTNESS_DESCRIPTION = NumberEntityDescription(
+    key="hub_light_brightness",
+    native_unit_of_measurement="%",
+    native_max_value=100,
+    native_min_value=0,
+    native_step=1,
+    name="Hub Light Brightness",
+    icon="mdi:brightness-6",
+)
+
 SNOOZE_MINUTES_DESCRIPTION = NumberEntityDescription(
     key="alarm_snooze_minutes",
     native_unit_of_measurement="min",
@@ -95,6 +105,29 @@ async def async_setup_entry(
                 lambda: user.torso_angle,
                 set_torso_angle,
                 restore_previous=False)])
+
+    # Hub LED brightness (issue #133). Only when the hub reports the field, so
+    # a pod that does not expose it never grows a dead entity.
+    if eight.led_brightness is not None:
+        def set_led_brightness(value):
+            entry.async_create_task(hass, eight.set_led_brightness(int(value)))
+
+        entities.append(
+            EightNumberEntity(
+                entry,
+                config_entry_data.device_coordinator,
+                eight,
+                None,                      # belongs to the hub, not to a side
+                LED_BRIGHTNESS_DESCRIPTION,
+                lambda: eight.led_brightness,
+                set_led_brightness,
+                base_entity=False,
+                # The hub reports the real brightness, so restoring HA's last
+                # value would overwrite a change made in the app while HA was
+                # down -- and would PUT on every restart for no reason.
+                restore_previous=False,
+            )
+        )
 
     async_add_entities(entities)
 
