@@ -94,7 +94,8 @@ async def async_setup_entry(
                 user,
                 FEET_DESCRIPTION,
                 lambda: user.leg_angle,
-                set_leg_angle),
+                set_leg_angle,
+                restore_previous=False),
             EightNumberEntity(
                 entry,
                 coordinator,
@@ -102,7 +103,8 @@ async def async_setup_entry(
                 user,
                 HEAD_DESCRIPTION,
                 lambda: user.torso_angle,
-                set_torso_angle)])
+                set_torso_angle,
+                restore_previous=False)])
 
     # Hub LED brightness (issue #133). Only when the hub reports the field, so
     # a pod that does not expose it never grows a dead entity.
@@ -151,11 +153,12 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity, RestoreEntity):
         self._restore_previous = restore_previous
 
     async def async_added_to_hass(self) -> None:
-        """Restore previous value on startup, for values HA alone holds.
+        """Restore the previous value, for values Home Assistant alone holds.
 
-        Entities whose value the device itself reports must not restore: doing
-        so writes a stale value back on every restart and silently overrides
-        whatever the user changed in the Eight Sleep app while HA was down.
+        Entities backed by state the device itself reports must not restore:
+        the setter is a real command, so a stale value is pushed back to the
+        hardware on every restart, overriding whatever changed while Home
+        Assistant was down.
         """
         await super().async_added_to_hass()
         if not self._restore_previous:

@@ -448,10 +448,11 @@ class EightSleep:
         """Manage the device json list."""
         self._device_json_list = [data, *self._device_json_list][:10]
 
-        if "cooling" in data["features"]:
+        features = data.get("features") or []
+        if "cooling" in features:
             self._is_pod = True
 
-        if "elevation" in data["features"]:
+        if "elevation" in features:
             self._has_base = True
 
         _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
@@ -461,7 +462,10 @@ class EightSleep:
         url = f"{CLIENT_API_URL}/users/me"
         dlist = await self.api_request("get", url)
 
-        self.device_id =  dlist["user"]["devices"][0]
+        devices = (dlist.get("user") or {}).get("devices") or []
+        if not devices:
+            raise RequestError("No devices associated with this Eight Sleep account")
+        self.device_id = devices[0]
 
     async def update_device_data(self) -> None:
         """Update device data json."""
@@ -520,6 +524,7 @@ class EightSleep:
             if resp.status >= 400:
                 # Handle HTTP errors for non-401 or for 401 on retry
                 error_message = f"API request {method.upper()} {url} failed with status {resp.status}"
+                error_details = None
                 try:
                     error_details = await resp.json()
                     error_message += f" - Details: {error_details}"
@@ -530,7 +535,9 @@ class EightSleep:
                     except Exception as text_exc:
                         error_message += f" - Failed to get response text: {text_exc}"
                 _LOGGER.error(error_message)
-                raise RequestError(error_message)
+                raise RequestError(
+                    error_message, status=resp.status, error_details=error_details
+                )
 
             # Successful response
             if return_json:

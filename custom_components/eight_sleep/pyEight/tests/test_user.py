@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone # Import datetime for away_mo
 # Assuming similar import structure as test_auth.py
 from custom_components.eight_sleep.pyEight.eight import EightSleep
 from custom_components.eight_sleep.pyEight.user import EightUser
-from custom_components.eight_sleep.pyEight.constants import APP_API_URL # For URL construction
+from custom_components.eight_sleep.pyEight.constants import APP_API_URL, CLIENT_API_URL # For URL construction
 
 class TestEightUser(unittest.IsolatedAsyncioTestCase):
 
@@ -86,9 +86,62 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
         expected_url = f"{APP_API_URL}v1/users/{self.user_id}/away-mode"
         expected_payload = {"awayPeriod": {"start": expected_api_timestamp}}
 
+        # set_away_mode must first re-sync this user's current-device/bed side so the
+        # away-mode call is scoped to the correct pod on multi-pod accounts (GH #116),
+        # then issue the away-mode call itself.
+        expected_bed_side_url = f"{CLIENT_API_URL}/users/{self.user_id}/current-device"
+        expected_bed_side_payload = {"id": str(self.mock_eight_device.device_id), "side": self.user_side}
+
+        self.assertEqual(self.mock_eight_device.api_request.call_count, 2)
+        calls = self.mock_eight_device.api_request.call_args_list
+        self.assertEqual(
+            calls[0], call('PUT', expected_bed_side_url, data=expected_bed_side_payload, return_json=False)
+        )
+        self.assertEqual(calls[1], call('PUT', expected_url, data=expected_payload))
+
+    @patch('custom_components.eight_sleep.pyEight.user.datetime')
+    async def test_set_away_mode_skips_bed_side_sync_when_side_unknown(self, mock_datetime):
+        """If we never learned this user's side, don't send an invalid current-device call."""
+        self.mock_eight_device.api_request = AsyncMock(return_value={})
+        self.user.side = None
+
+        fixed_utcnow = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.utcnow.return_value = fixed_utcnow
+        expected_api_timestamp = (fixed_utcnow - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        await self.user.set_away_mode("start")
+
+        expected_url = f"{APP_API_URL}v1/users/{self.user_id}/away-mode"
+        expected_payload = {"awayPeriod": {"start": expected_api_timestamp}}
+
+        # Only the away-mode call should have been made; no current-device call.
         self.mock_eight_device.api_request.assert_called_once_with(
             'PUT', expected_url, data=expected_payload
         )
+
+    @patch('custom_components.eight_sleep.pyEight.user.datetime')
+    async def test_set_away_mode_still_proceeds_if_bed_side_sync_fails(self, mock_datetime):
+        """A failure syncing current-device shouldn't block the away-mode call itself."""
+        fixed_utcnow = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.utcnow.return_value = fixed_utcnow
+        expected_api_timestamp = (fixed_utcnow - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        expected_bed_side_url = f"{CLIENT_API_URL}/users/{self.user_id}/current-device"
+        expected_away_url = f"{APP_API_URL}v1/users/{self.user_id}/away-mode"
+
+        async def api_request_side_effect(method, url, **kwargs):
+            if url == expected_bed_side_url:
+                raise Exception("boom")
+            return {}
+
+        self.mock_eight_device.api_request = AsyncMock(side_effect=api_request_side_effect)
+
+        await self.user.set_away_mode("start")
+
+        expected_payload = {"awayPeriod": {"start": expected_api_timestamp}}
+        calls = self.mock_eight_device.api_request.call_args_list
+        self.assertEqual(self.mock_eight_device.api_request.call_count, 2)
+        self.assertEqual(calls[1], call('PUT', expected_away_url, data=expected_payload))
 
     async def test_current_hrv_property_with_data(self):
         # Mock the user's trends data
@@ -142,6 +195,66 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
             self.user.side = None
             self.assertEqual(self.user.corrected_side_for_key, "left")
             mock_logger.warning.assert_called_once()
+
+
+class TestEightUserBase(unittest.IsolatedAsyncioTestCase):
+    """Tests for bed base control when base data is missing or partial (#144)."""
+
+    def setUp(self):
+        self.mock_eight_device = AsyncMock(spec=EightSleep)
+        self.mock_eight_device.timezone = "America/New_York"
+        self.mock_eight_device.device_data = {}
+        self.mock_eight_device.device_id = "fake_device_id"
+        self.mock_eight_device.has_base = True
+        self.user = EightUser(self.mock_eight_device, "test_user_123", "left")
+        self.user._base_data = {}
+
+    async def test_set_base_angle_without_base_data_still_sends_request(self):
+        """An empty _base_data must not stop the command from reaching the API.
+
+        `update_base_data` swallows a failed GET /base (the API answers 404
+        BaseOffline when the frame is unplugged), leaving _base_data empty. The
+        optimistic local write then raised KeyError *before* the POST, so the
+        user's request was silently dropped.
+        """
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=10, torso_angle=20)
+
+        self.mock_eight_device.api_request.assert_awaited_once()
+        args, kwargs = self.mock_eight_device.api_request.await_args
+        self.assertEqual(args[0], "POST")
+        self.assertEqual(kwargs["data"]["legAngle"], 10)
+        self.assertEqual(kwargs["data"]["torsoAngle"], 20)
+
+    async def test_set_base_angle_with_partial_base_data(self):
+        """Only one of the two angle keys present must not raise either."""
+        self.user._base_data = {"left": {"leg": {"currentAngle": 0}}}
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=5, torso_angle=15)
+
+        self.mock_eight_device.api_request.assert_awaited_once()
+
+    async def test_set_base_angle_updates_local_state_when_present(self):
+        """The optimistic local update must still happen when the keys exist."""
+        self.user._base_data = {
+            "left": {"leg": {"currentAngle": 0}, "torso": {"currentAngle": 0}}
+        }
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_angle(leg_angle=7, torso_angle=12)
+
+        self.assertEqual(self.user.leg_angle, 7)
+        self.assertEqual(self.user.torso_angle, 12)
+
+    async def test_set_base_preset_without_base_data_still_sends_request(self):
+        """set_base_preset must survive empty base data the same way."""
+        self.mock_eight_device.api_request = AsyncMock()
+
+        await self.user.set_base_preset("sleep")
+
+        self.mock_eight_device.api_request.assert_awaited_once()
 
 
 if __name__ == '__main__':
