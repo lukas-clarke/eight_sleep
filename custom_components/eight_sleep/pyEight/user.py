@@ -35,6 +35,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._base_data: dict[str, Any] = {}
         self.trends: list[dict[str, Any]] = []
         self.alarms: list[dict[str, Any]] = []
+        self.bedtime_schedules: list[dict[str, Any]] = []
+        self.schedule_type: str | None = None
         self.routines: list[dict[str, Any]] = []  # Kept for backward compat, always empty now
         self.smart_schedule: dict[str, Any] | None = None
         self.next_alarm = None
@@ -59,6 +61,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
             return heating_level_to_temp(float(level), unit)
         except (ValueError, TypeError):
             return None
+
+    @staticmethod
+    def _clean(value: Any) -> Any:
+        """Return None for the literal "None" the API sends for absent values."""
+        return None if value == "None" else value
 
     def _get_trend(self, trend_num: int, keys: str | tuple[str, ...]) -> Any:
         """Get trend value for specified key."""
@@ -117,7 +124,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
             or not timeseries_data.get(key)
         ):
             return None
-        return timeseries_data[key][-1][1]
+        return self._clean(timeseries_data[key][-1][1])
 
     def _session_date(self, trend_num: int) -> datetime | None:
         """Get session date for given trend."""
@@ -132,13 +139,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return durations of sleep stages for given session."""
         if len(self.trends) < (trend_num + 1):
             return None
+        # An away side reports a session with no durations at all, so the
+        # subtraction below has to tolerate either half being absent instead
+        # of raising TypeError before any sensor is reached (#52).
+        presence = self._get_trend(trend_num, "presenceDuration")
+        slept = self._get_trend(trend_num, "sleepDuration")
+        awake = presence - slept if None not in (presence, slept) else None
         breakdown = {
             "light": self._get_trend(trend_num, "lightDuration"),
             "deep": self._get_trend(trend_num, "deepDuration"),
             "rem": self._get_trend(trend_num, "remDuration"),
-            "awake": self._get_trend(trend_num, "presenceDuration") - self._get_trend(trend_num, "sleepDuration")
+            "awake": awake,
         }
-        return {k: v for k, v in breakdown.items() if v is not None}
+        breakdown = {k: v for k, v in breakdown.items() if v is not None}
+        return breakdown or None
 
     def _session_processing(self, trend_num: int) -> bool | None:
         """Return processing state of given session."""
@@ -469,7 +483,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return current room temperature for in-progress session."""
         timeseries = self._trend_timeseries()
         if timeseries and timeseries.get("tempRoomC"):
-            return timeseries["tempRoomC"][-1][1]
+            return self._clean(timeseries["tempRoomC"][-1][1])
         return None
 
     @property
@@ -487,7 +501,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return current heart rate for in-progress session."""
         timeseries = self._trend_timeseries()
         if timeseries and timeseries.get("heartRate"):
-            return timeseries["heartRate"][-1][1]
+            return self._clean(timeseries["heartRate"][-1][1])
         return None
 
     @property
@@ -853,6 +867,20 @@ class EightUser:  # pylint: disable=too-many-public-methods
                 self.smart_schedule = resp.get("smart")
                 _LOGGER.debug(f"User {self.user_id} Smart Schedule: {self.smart_schedule}")
 
+                # Bedtime routines migrated here from the retired routines API:
+                # currentSchedule/nextSchedule carry time, days and startSettings
+                # (bed level, pillowBedtime, elevationPreset, audioSettings).
+                self.schedule_type = resp.get("scheduleType")
+                schedules: list[dict[str, Any]] = []
+                seen_ids: set[str] = set()
+                for key in ("currentSchedule", "nextSchedule"):
+                    sched = resp.get(key)
+                    sched_id = (sched or {}).get("id")
+                    if sched and sched_id and sched_id not in seen_ids:
+                        seen_ids.add(sched_id)
+                        schedules.append(sched)
+                self.bedtime_schedules = schedules
+
         except Exception as e:
             _LOGGER.warning(f"Error fetching temperature data for {self.user_id}: {e}")
 
@@ -1072,6 +1100,29 @@ class EightUser:  # pylint: disable=too-many-public-methods
 
     async def set_away_mode(self, action: str):
         """Sets the away mode. The action can either be 'start' or 'stop'"""
+        # The away-mode endpoint is user-scoped, but Eight Sleep's backend applies it to
+        # whichever pod is currently the account's "current device" rather than the pod
+        # this user actually belongs to. On accounts with multiple pods this can silently
+        # flip the wrong pod's away mode (see GH issue #116; the PR #109 device-id fix did
+        # not resolve this since it never re-asserts the current device before the call).
+        # Re-sync this user's bed side/current-device first so the away-mode call always
+        # lands on the pod that owns this entity, mirroring the set_bed_side workaround
+        # reported to fix this in practice.
+        if self.side:
+            try:
+                await self.set_bed_side(self.side)
+            except Exception as err:  # noqa: BLE001 - best effort, don't block away mode
+                _LOGGER.warning(
+                    f"User {self.user_id}: Could not sync current device (side '{self.side}') "
+                    f"before setting away mode; on multi-pod accounts this call may target the "
+                    f"wrong pod: {err}"
+                )
+        else:
+            _LOGGER.warning(
+                f"User {self.user_id}: No known bed side; skipping current-device sync before "
+                f"setting away mode. On multi-pod accounts this call may target the wrong pod."
+            )
+
         url = APP_API_URL + f"v1/users/{self.user_id}/away-mode"
         # Setting time to UTC of 24 hours ago to get API to trigger immediately
         now = str(
@@ -1110,6 +1161,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         trend_data = await self.device.api_request("get", url, params=params)
         self.trends = trend_data.get("days", [])
 
+    @staticmethod
+    def _is_subscription_required_error(err: RequestError) -> bool:
+        """Return True for the 403 "subscription required" alarms API error."""
+        if err.status != 403:
+            return False
+        if not isinstance(err.error_details, dict):
+            return False
+        return "subscription" in str(err.error_details.get("message", "")).lower()
+
     async def update_routines_data(self) -> None:
         """Update alarm data from the new /v2/alarms endpoint.
 
@@ -1136,7 +1196,21 @@ class EightUser:  # pylint: disable=too-many-public-methods
         }
         """
         url = APP_API_URL + f"v2/users/{self.user_id}/alarms"
-        resp = await self.device.api_request("GET", url)
+        try:
+            resp = await self.device.api_request("GET", url)
+        except RequestError as err:
+            if not self._is_subscription_required_error(err):
+                raise
+            # Accounts without an active subscription get 403 "subscription
+            # required" from the alarms API. Propagating the error here kills
+            # the whole user coordinator on every refresh (#122), taking down
+            # climate/sensors that don't need a subscription at all. Degrade
+            # gracefully instead: no alarm data, everything else keeps working.
+            _LOGGER.debug("Alarms unavailable for user %s: %s", self.user_id, err)
+            self.alarms = []
+            self.next_alarm = None
+            self.next_alarm_id = None
+            return
 
         self.alarms = resp.get("alarms", [])
 
@@ -1226,12 +1300,28 @@ class EightUser:  # pylint: disable=too-many-public-methods
                     self.user_id,
                 )
 
+    def _set_base_angle_locally(self, leg_angle: int, torso_angle: int) -> None:
+        """Apply the optimistic angle update to cached base data, if any.
+
+        base_data_for_side returns a throwaway dict when the side is absent, so
+        writing into it would be a no-op that merely looks like an update. Only
+        mutate the real cached side.
+        """
+        side_data = self.base_data.get(self.corrected_side_for_key)
+        if side_data is None:
+            return
+        side_data.setdefault("leg", {})["currentAngle"] = leg_angle
+        side_data.setdefault("torso", {})["currentAngle"] = torso_angle
+
     async def set_base_angle(self, leg_angle: int, torso_angle: int) -> None:
         """Set the angles of the bed base."""
         if self.device.has_base:
-            # Update the angles locally
-            self.base_data_for_side["leg"]["currentAngle"] = leg_angle
-            self.base_data_for_side["torso"]["currentAngle"] = torso_angle
+            # Update the angles locally, when there is local state to update.
+            # update_base_data() swallows a failed GET /base -- the API answers
+            # 404 BaseOffline while the frame is unplugged -- so _base_data can
+            # be empty or partial. Indexing it blindly raised KeyError *before*
+            # the request below, silently dropping the user's command.
+            self._set_base_angle_locally(leg_angle, torso_angle)
 
             url = f"{APP_API_URL}v1/users/{self.user_id}/base/angle?ignoreDeviceErrors=false"
             payload = {

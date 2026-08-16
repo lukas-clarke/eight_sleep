@@ -115,6 +115,29 @@ class EightSleep:
         return self._device_json_list[0]
 
     @property
+    def led_brightness(self) -> int | None:
+        """Return the hub's LED brightness (0-100), or None if not reported."""
+        if not self._device_json_list:
+            return None
+        value = self.device_data.get("ledBrightnessLevel")
+        return int(value) if value is not None else None
+
+    async def set_led_brightness(self, level: int) -> None:
+        """Set the hub's LED brightness.
+
+        Verified against a live Pod 5: the device resource accepts a PUT and
+        answers `{"message": "Device successfully updated."}` with the new
+        value reflected on the next read.
+        """
+        level = max(0, min(100, level))
+        url = f"{CLIENT_API_URL}/devices/{self.device_id}"
+        await self.api_request("PUT", url, data={"ledBrightnessLevel": level})
+        # Keep the cached payload in step so the entity does not flip back
+        # until the next coordinator refresh.
+        if self._device_json_list:
+            self._device_json_list[0]["ledBrightnessLevel"] = level
+
+    @property
     def device_data_history(self) -> list[dict]:
         """Return full raw device_data json list."""
         return self._device_json_list
@@ -425,10 +448,11 @@ class EightSleep:
         """Manage the device json list."""
         self._device_json_list = [data, *self._device_json_list][:10]
 
-        if "cooling" in data["features"]:
+        features = data.get("features") or []
+        if "cooling" in features:
             self._is_pod = True
 
-        if "elevation" in data["features"]:
+        if "elevation" in features:
             self._has_base = True
 
         _LOGGER.debug(f"Device: {self.device_id}, Pod: {self._is_pod}, Base: {self._has_base}, Speaker: {self._has_speaker}")
@@ -438,7 +462,10 @@ class EightSleep:
         url = f"{CLIENT_API_URL}/users/me"
         dlist = await self.api_request("get", url)
 
-        self.device_id =  dlist["user"]["devices"][0]
+        devices = (dlist.get("user") or {}).get("devices") or []
+        if not devices:
+            raise RequestError("No devices associated with this Eight Sleep account")
+        self.device_id = devices[0]
 
     async def update_device_data(self) -> None:
         """Update device data json."""
@@ -497,6 +524,7 @@ class EightSleep:
             if resp.status >= 400:
                 # Handle HTTP errors for non-401 or for 401 on retry
                 error_message = f"API request {method.upper()} {url} failed with status {resp.status}"
+                error_details = None
                 try:
                     error_details = await resp.json()
                     error_message += f" - Details: {error_details}"
@@ -507,7 +535,9 @@ class EightSleep:
                     except Exception as text_exc:
                         error_message += f" - Failed to get response text: {text_exc}"
                 _LOGGER.error(error_message)
-                raise RequestError(error_message)
+                raise RequestError(
+                    error_message, status=resp.status, error_details=error_details
+                )
 
             # Successful response
             if return_json:
