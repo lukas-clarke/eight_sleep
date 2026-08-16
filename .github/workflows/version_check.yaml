@@ -1,0 +1,26 @@
+name: Version check
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  manifest-matches-tag:
+    name: manifest.json version matches release tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The release event already defaults to the tagged commit; being
+          # explicit keeps the intent clear if this workflow ever gains
+          # another trigger.
+          ref: ${{ github.event.release.tag_name }}
+      - name: Compare manifest version with tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MANIFEST=$(python3 -c "import json; print(json.load(open('custom_components/eight_sleep/manifest.json'))['version'])")
+          echo "release tag: $TAG · manifest: $MANIFEST"
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "::error file=custom_components/eight_sleep/manifest.json::manifest version ($MANIFEST) does not match release tag ($TAG). Home Assistant reports the manifest version, so they must be bumped together."
+            exit 1
+          fi
