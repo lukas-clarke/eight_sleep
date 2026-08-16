@@ -84,7 +84,8 @@ async def async_setup_entry(
                 user,
                 FEET_DESCRIPTION,
                 lambda: user.leg_angle,
-                set_leg_angle),
+                set_leg_angle,
+                restore_previous=False),
             EightNumberEntity(
                 entry,
                 coordinator,
@@ -92,7 +93,8 @@ async def async_setup_entry(
                 user,
                 HEAD_DESCRIPTION,
                 lambda: user.torso_angle,
-                set_torso_angle)])
+                set_torso_angle,
+                restore_previous=False)])
 
     async_add_entities(entities)
 
@@ -109,15 +111,25 @@ class EightNumberEntity(EightSleepBaseEntity, NumberEntity, RestoreEntity):
         value_getter: Callable[[], float | None],
         set_value_callback: Callable[[float], None],
         base_entity: bool = True,
+        restore_previous: bool = True,
     ):
         super().__init__(entry, coordinator, eight, user, entity_description.key, base_entity=base_entity)
         self.entity_description = entity_description
         self._value_getter = value_getter
         self._set_value_callback = set_value_callback
+        self._restore_previous = restore_previous
 
     async def async_added_to_hass(self) -> None:
-        """Restore previous value on startup."""
+        """Restore the previous value, for values Home Assistant alone holds.
+
+        Entities backed by state the device itself reports must not restore:
+        the setter is a real command, so a stale value is pushed back to the
+        hardware on every restart, overriding whatever changed while Home
+        Assistant was down.
+        """
         await super().async_added_to_hass()
+        if not self._restore_previous:
+            return
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (None, "unknown", "unavailable"):
             try:
