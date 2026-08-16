@@ -501,6 +501,7 @@ class EightSleep:
             if resp.status >= 400:
                 # Handle HTTP errors for non-401 or for 401 on retry
                 error_message = f"API request {method.upper()} {url} failed with status {resp.status}"
+                error_details = None
                 try:
                     error_details = await resp.json()
                     error_message += f" - Details: {error_details}"
@@ -511,7 +512,9 @@ class EightSleep:
                     except Exception as text_exc:
                         error_message += f" - Failed to get response text: {text_exc}"
                 _LOGGER.error(error_message)
-                raise RequestError(error_message)
+                raise RequestError(
+                    error_message, status=resp.status, error_details=error_details
+                )
 
             # Successful response
             if return_json:
