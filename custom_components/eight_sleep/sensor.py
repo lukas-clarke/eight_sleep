@@ -231,6 +231,27 @@ async def async_setup_entry(
         "async_set_bed_side",
     )
     platform.async_register_entity_service(
+        "set_routine_alarm",
+        {
+            vol.Required("routine_id"): vol.All(vol.Coerce(str)),
+            vol.Required("alarm_id"): vol.All(vol.Coerce(str)),
+            # pyEight sends this straight through as the "time" field of a
+            # JSON PUT body (set_alarm_time()); cv.time would hand it a
+            # datetime.time object that aiohttp's default JSON encoder can't
+            # serialize, so keep it as the string the API expects.
+            vol.Required("alarm_time"): vol.All(vol.Coerce(str)),
+        },
+        "async_set_routine_alarm",
+    )
+    platform.async_register_entity_service(
+        "set_routine_bedtime",
+        {
+            vol.Required("routine_id"): vol.All(vol.Coerce(str)),
+            vol.Required("bedtime"): vol.All(vol.Coerce(str)),
+        },
+        "async_set_routine_bedtime",
+    )
+    platform.async_register_entity_service(
         SERVICE_REFRESH_DATA,
         {},
         "async_refresh_data",
