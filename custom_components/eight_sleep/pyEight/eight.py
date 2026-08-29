@@ -196,9 +196,16 @@ class EightSleep:
         """Return the user object for speaker API calls."""
         if not self.has_speaker:
             return None
-        # Fall back to the old behaviour rather than losing the speaker
-        # outright if the device data has no side assigned yet.
-        return next(iter(self.bed_users or self.users.values()), None)
+        if self._device_json_list:
+            # Device data is available: only a user actually occupying a
+            # side of this device may be asked for speaker state/commands.
+            # Falling back to an unrelated user here (e.g. an administrator
+            # picked up via `awaySides`) is exactly how the phantom-speaker
+            # bug this file fixes happened in the first place.
+            return next(iter(self.bed_users), None)
+        # Device data not fetched yet: keep the old behaviour rather than
+        # losing the speaker outright before we know which side it's on.
+        return next(iter(self.users.values()), None)
 
     def convert_raw_bed_temp_to_degrees(self, raw_value, degree_unit):
         """degree_unit can be 'c' or 'f'

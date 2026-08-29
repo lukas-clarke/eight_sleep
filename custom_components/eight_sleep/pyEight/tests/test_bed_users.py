@@ -49,9 +49,23 @@ class TestBedUsers(unittest.TestCase):
 
         assert eight.speaker_user.user_id == SLEEPER
 
-    def test_speaker_user_falls_back_when_no_side_is_assigned(self):
+    def test_speaker_user_is_none_when_device_data_has_no_matching_side(self):
+        """Device data is present but assigns no side -- do not guess.
+
+        This used to fall back to whoever was in `self.users` (an
+        administrator picked up via `awaySides`, in this fixture), which is
+        the exact phantom-speaker bug this file fixes: it just moves the bug
+        from "no device data yet" to "device data exists but doesn't match".
+        Once device data exists, only a real bed_user or None is acceptable.
+        """
+        eight = _device([OWNER], left=None, right=None)
+
+        assert eight.speaker_user is None
+
+    def test_speaker_user_falls_back_when_device_data_not_fetched_yet(self):
         """Losing the speaker outright would be worse than the old guess."""
         eight = _device([OWNER], left=None, right=None)
+        eight._device_json_list = []
 
         assert eight.speaker_user.user_id == OWNER
 
