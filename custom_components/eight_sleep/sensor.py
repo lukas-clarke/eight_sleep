@@ -244,14 +244,6 @@ async def async_setup_entry(
         "async_set_routine_alarm",
     )
     platform.async_register_entity_service(
-        "set_routine_bedtime",
-        {
-            vol.Required("routine_id"): vol.All(vol.Coerce(str)),
-            vol.Required("bedtime"): vol.All(vol.Coerce(str)),
-        },
-        "async_set_routine_bedtime",
-    )
-    platform.async_register_entity_service(
         SERVICE_REFRESH_DATA,
         {},
         "async_refresh_data",
