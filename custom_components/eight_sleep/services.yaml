@@ -131,20 +131,6 @@ set_routine_alarm:
       required: true
       selector:
         time:
-set_routine_bedtime:
-  target:
-    entity:
-      integration: eight_sleep
-      domain: sensor
-  fields:
-    routine_id:
-      required: true
-      selector:
-        text:
-    bedtime:
-      required: true
-      selector:
-        time:
 
 set_one_off_alarm:
   target:
