@@ -31,6 +31,38 @@ SNORE_MITIGATION_DESCRIPTION = BinarySensorEntityDescription(
     icon="mdi:account-alert",
 )
 
+# Device-level (hub) status booleans, sourced from the device doc.
+IS_PRIMING_DESCRIPTION = BinarySensorEntityDescription(
+    key="is_priming",
+    name="Is Priming",
+    device_class=BinarySensorDeviceClass.RUNNING,
+)
+
+NEED_PRIMING_DESCRIPTION = BinarySensorEntityDescription(
+    key="need_priming",
+    name="Need Priming",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    icon="mdi:water-alert",
+)
+
+HAS_WATER_DESCRIPTION = BinarySensorEntityDescription(
+    key="has_water",
+    name="Has Water",
+    icon="mdi:water",
+)
+
+FIRMWARE_UPDATING_DESCRIPTION = BinarySensorEntityDescription(
+    key="firmware_updating",
+    name="Firmware Updating",
+    device_class=BinarySensorDeviceClass.UPDATE,
+)
+
+ONLINE_DESCRIPTION = BinarySensorEntityDescription(
+    key="online",
+    name="Online",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -60,6 +92,19 @@ async def async_setup_entry(
             SNORE_MITIGATION_DESCRIPTION,
             lambda: base_user.in_snore_mitigation,
             base_entity=True))
+
+    # Device-level (hub) status bools — driven by the device coordinator so HA
+    # sees on/off transitions (priming / water / firmware-updating / online).
+    device_coordinator = config_entry_data.device_coordinator
+    for description, getter in (
+        (IS_PRIMING_DESCRIPTION, lambda: eight.is_priming),
+        (NEED_PRIMING_DESCRIPTION, lambda: eight.need_priming),
+        (HAS_WATER_DESCRIPTION, lambda: eight.has_water),
+        (FIRMWARE_UPDATING_DESCRIPTION, lambda: eight.firmware_updating),
+        (ONLINE_DESCRIPTION, lambda: eight.online),
+    ):
+        entities.append(EightBinaryEntity(
+            entry, device_coordinator, eight, None, description, getter))
 
     async_add_entities(entities)
 

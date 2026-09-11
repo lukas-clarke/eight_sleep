@@ -144,19 +144,45 @@ class EightSleep:
 
     @property
     def need_priming(self) -> bool:
-        return self.device_data["needsPriming"]
+        return bool(self.device_data.get("needsPriming", False))
 
     @property
     def is_priming(self) -> bool:
-        return self.device_data["priming"]
+        return bool(self.device_data.get("priming", False))
 
     @property
     def has_water(self) -> bool:
-        return self.device_data["hasWater"]
+        return bool(self.device_data.get("hasWater", False))
 
     @property
     def last_prime(self):
         return self.convert_string_to_datetime(self.device_data["lastPrime"])
+
+    @property
+    def firmware_version(self) -> str | None:
+        """Installed firmware short version, e.g. '444c5a9'."""
+        return self.device_data.get("firmwareVersion")
+
+    @property
+    def firmware_commit(self) -> str | None:
+        """Installed firmware full commit hash."""
+        return self.device_data.get("firmwareCommit")
+
+    @property
+    def firmware_updating(self) -> bool:
+        """True while an OTA is in progress (the device self-reboots to apply)."""
+        return bool(self.device_data.get("firmwareUpdating", False))
+
+    @property
+    def online(self) -> bool:
+        """Cloud-reported device online flag."""
+        return bool(self.device_data.get("online", False))
+
+    @property
+    def last_heard(self):
+        """Timestamp the cloud last heard from the device (liveness)."""
+        last_heard = self.device_data.get("lastHeard")
+        return self.convert_string_to_datetime(last_heard) if last_heard else None
 
     @property
     def is_pod(self) -> bool:

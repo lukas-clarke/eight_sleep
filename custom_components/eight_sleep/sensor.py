@@ -19,7 +19,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfTemperature,
-    CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -98,12 +97,13 @@ EIGHT_USER_SENSORS = [
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
+# Priming / water / firmware-updating / online are now proper binary_sensors
+# (see binary_sensor.py) so HA reads their on/off transitions correctly.
 EIGHT_ROOM_SENSORS = [
     "room_temperature",
-    "need_priming",
-    "is_priming",
-    "has_water",
     "last_prime",
+    "last_heard",
+    "firmware_version",
 ]
 
 VALID_TARGET_HEAT = vol.All(vol.Coerce(int), vol.Clamp(min=-100, max=100))
@@ -492,11 +492,10 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-        elif self._sensor == "last_prime":
+        elif self._sensor in ("last_prime", "last_heard"):
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
-        else:
-            self._attr_state_class = CONF_BINARY_SENSORS
-            self._attr_device_class = CONF_BINARY_SENSORS
+        elif self._sensor == "firmware_version":
+            self._attr_icon = "mdi:chip"
 
     @property
     def native_value(self) -> int | float | None:
