@@ -71,6 +71,36 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls[0], call('PUT', expected_url, data={'currentLevel': 50}))
         self.assertEqual(calls[1], call('PUT', expected_url, data={'timeBased': {'level': 50, 'durationSeconds': 7200}}))
 
+    async def test_set_heating_level_without_duration_sends_only_the_level(self):
+        # Without a duration the level is not wrapped in a time-based override
+        # that expires and hands control back to the schedule.
+        self.mock_eight_device.api_request = AsyncMock(return_value={})
+
+        await self.user.set_heating_level(level=50, power_on=False)
+
+        expected_url = f"{APP_API_URL}v1/users/{self.user_id}/temperature"
+        self.assertEqual(
+            self.mock_eight_device.api_request.call_args_list,
+            [call('PUT', expected_url, data={'currentLevel': 50})],
+        )
+
+    async def test_set_heating_level_clamps_what_is_sent(self):
+        # The clamp used to run after the request bodies were built.
+        expected_url = f"{APP_API_URL}v1/users/{self.user_id}/temperature"
+        for level, sent in ((250, 100), (-250, -100)):
+            with self.subTest(level=level):
+                self.mock_eight_device.api_request = AsyncMock(return_value={})
+
+                await self.user.set_heating_level(level=level, duration=60, power_on=False)
+
+                self.assertEqual(
+                    self.mock_eight_device.api_request.call_args_list,
+                    [
+                        call('PUT', expected_url, data={'currentLevel': sent}),
+                        call('PUT', expected_url, data={'timeBased': {'level': sent, 'durationSeconds': 60}}),
+                    ],
+                )
+
     @patch('custom_components.eight_sleep.pyEight.user.datetime') # Mock datetime within user.py
     async def test_set_away_mode_start(self, mock_datetime):
         self.mock_eight_device.api_request = AsyncMock(return_value={})
