@@ -39,7 +39,6 @@ MAX_TEMP_C = 43
 TEMP_STEP = 1
 
 # Duration for heating/cooling in seconds (2 hours)
-DEFAULT_DURATION = 7200
 
 
 async def async_setup_entry(
@@ -284,8 +283,9 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
         level = temp_to_heating_level(temperature, unit)
 
-        # Set temperature level with default duration
-        await self._user_obj.set_heating_level(level, DEFAULT_DURATION, power_on=False)
+        # No duration: a setpoint from the thermostat should not expire and
+        # fall back to the schedule after a fixed time.
+        await self._user_obj.set_heating_level(level, power_on=False)
         await self._eight.update_device_data()
         # Refresh state
         await self.coordinator.async_refresh()

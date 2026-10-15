@@ -902,21 +902,27 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return data["currentState"]["type"]
 
     async def set_heating_level(self, level: int, duration: int = 0, *, power_on: bool = True) -> None:
-        """Update heating data, optionally powering on first."""
+        """Update heating data, optionally powering on first.
+
+        `duration` > 0 also sends a time-based override that ends after that
+        many seconds, and the side then returns to its schedule. With the
+        default 0 only the level is set.
+        """
         url = APP_API_URL + f"v1/users/{self.user_id}/temperature"
-        data_for_duration = {"timeBased": {"level": level, "durationSeconds": duration}}
-        data_for_level = {"currentLevel": level}
-        # Catch bad low inputs
-        level = max(-100, level)
-        # Catch bad high inputs
-        level = min(100, level)
+        # Clamp before building the request bodies, so the clamp reaches them.
+        level = min(100, max(-100, level))
 
         if power_on:
             await self.turn_on_side()
         await self.device.api_request(
-            "PUT", url, data=data_for_level
+            "PUT", url, data={"currentLevel": level}
         )  # Set heating level before duration
-        await self.device.api_request("PUT", url, data=data_for_duration)
+        if duration > 0:
+            await self.device.api_request(
+                "PUT",
+                url,
+                data={"timeBased": {"level": level, "durationSeconds": duration}},
+            )
 
     async def set_smart_heating_level(self, level: int, sleep_stage: str) -> None:
         """Will set the temperature level at a smart sleep stage"""
