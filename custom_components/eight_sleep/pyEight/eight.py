@@ -142,21 +142,56 @@ class EightSleep:
         """Return full raw device_data json list."""
         return self._device_json_list
 
-    @property
-    def need_priming(self) -> bool:
-        return self.device_data["needsPriming"]
+    def _device_bool(self, key: str) -> bool | None:
+        """Read a boolean from the device doc, or None if it isn't reported.
+
+        None (rather than a False default) lets HA show the entity as unknown,
+        so a missing field is never mistaken for e.g. "not updating".
+        """
+        value = self.device_data.get(key)
+        return bool(value) if value is not None else None
 
     @property
-    def is_priming(self) -> bool:
-        return self.device_data["priming"]
+    def need_priming(self) -> bool | None:
+        return self._device_bool("needsPriming")
 
     @property
-    def has_water(self) -> bool:
-        return self.device_data["hasWater"]
+    def is_priming(self) -> bool | None:
+        return self._device_bool("priming")
+
+    @property
+    def has_water(self) -> bool | None:
+        return self._device_bool("hasWater")
 
     @property
     def last_prime(self):
         return self.convert_string_to_datetime(self.device_data["lastPrime"])
+
+    @property
+    def firmware_version(self) -> str | None:
+        """Installed firmware short version, e.g. '444c5a9'."""
+        return self.device_data.get("firmwareVersion")
+
+    @property
+    def firmware_commit(self) -> str | None:
+        """Installed firmware full commit hash."""
+        return self.device_data.get("firmwareCommit")
+
+    @property
+    def firmware_updating(self) -> bool | None:
+        """True while an OTA is in progress (the device self-reboots to apply)."""
+        return self._device_bool("firmwareUpdating")
+
+    @property
+    def online(self) -> bool | None:
+        """Cloud-reported device online flag."""
+        return self._device_bool("online")
+
+    @property
+    def last_heard(self):
+        """Timestamp the cloud last heard from the device (liveness)."""
+        last_heard = self.device_data.get("lastHeard")
+        return self.convert_string_to_datetime(last_heard) if last_heard else None
 
     @property
     def is_pod(self) -> bool:
