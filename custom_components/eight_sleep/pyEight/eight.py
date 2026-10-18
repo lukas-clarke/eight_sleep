@@ -142,17 +142,26 @@ class EightSleep:
         """Return full raw device_data json list."""
         return self._device_json_list
 
-    @property
-    def need_priming(self) -> bool:
-        return bool(self.device_data.get("needsPriming", False))
+    def _device_bool(self, key: str) -> bool | None:
+        """Read a boolean from the device doc, or None if it isn't reported.
+
+        None (rather than a False default) lets HA show the entity as unknown,
+        so a missing field is never mistaken for e.g. "not updating".
+        """
+        value = self.device_data.get(key)
+        return bool(value) if value is not None else None
 
     @property
-    def is_priming(self) -> bool:
-        return bool(self.device_data.get("priming", False))
+    def need_priming(self) -> bool | None:
+        return self._device_bool("needsPriming")
 
     @property
-    def has_water(self) -> bool:
-        return bool(self.device_data.get("hasWater", False))
+    def is_priming(self) -> bool | None:
+        return self._device_bool("priming")
+
+    @property
+    def has_water(self) -> bool | None:
+        return self._device_bool("hasWater")
 
     @property
     def last_prime(self):
@@ -169,14 +178,14 @@ class EightSleep:
         return self.device_data.get("firmwareCommit")
 
     @property
-    def firmware_updating(self) -> bool:
+    def firmware_updating(self) -> bool | None:
         """True while an OTA is in progress (the device self-reboots to apply)."""
-        return bool(self.device_data.get("firmwareUpdating", False))
+        return self._device_bool("firmwareUpdating")
 
     @property
-    def online(self) -> bool:
+    def online(self) -> bool | None:
         """Cloud-reported device online flag."""
-        return bool(self.device_data.get("online", False))
+        return self._device_bool("online")
 
     @property
     def last_heard(self):

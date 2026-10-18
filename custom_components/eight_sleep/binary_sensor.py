@@ -54,7 +54,7 @@ HAS_WATER_DESCRIPTION = BinarySensorEntityDescription(
 FIRMWARE_UPDATING_DESCRIPTION = BinarySensorEntityDescription(
     key="firmware_updating",
     name="Firmware Updating",
-    device_class=BinarySensorDeviceClass.UPDATE,
+    device_class=BinarySensorDeviceClass.RUNNING,
 )
 
 ONLINE_DESCRIPTION = BinarySensorEntityDescription(
