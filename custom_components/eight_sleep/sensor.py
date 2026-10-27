@@ -202,7 +202,9 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SET_ONE_OFF_ALARM,
         {
-            vol.Required("time"): cv.time,
+            # pyEight puts this in a JSON POST body; cv.time yields a
+            # datetime.time the encoder can't serialize, so keep it a string.
+            vol.Required("time"): vol.All(vol.Coerce(str)),
             vol.Optional("enabled", default=True): cv.boolean,
             vol.Optional("vibration_enabled", default=True): cv.boolean,
             vol.Optional("vibration_power_level", default=50): vol.All(
