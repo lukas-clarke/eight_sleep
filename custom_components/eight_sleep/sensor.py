@@ -87,6 +87,7 @@ EIGHT_USER_SENSORS = [
     "current_hrv",
     "current_breath_rate",
     "bed_temperature",
+    "current_measured_bed_temp",
     "target_heating_temp",
     "sleep_stage",
     "next_alarm",

@@ -53,6 +53,12 @@ NAME_MAP = {
         SensorDeviceClass.TEMPERATURE,
         SensorStateClass.MEASUREMENT
     ),
+    "current_measured_bed_temp": NameMapEntity(
+        "Measured Bed Temperature",
+        "°C",
+        SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT
+    ),
 }
 
 SERVICE_HEAT_SET = "heat_set"
