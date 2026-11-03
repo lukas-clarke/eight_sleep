@@ -42,6 +42,33 @@ NAME_MAP = {
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
+    "exercise_window_start": NameMapEntity(
+        "Exercise Window Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
+    "exercise_window_end": NameMapEntity(
+        "Exercise Window End",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
+    "cognitive_window_start": NameMapEntity(
+        "Cognitive Window Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
+    "cognitive_window_end": NameMapEntity(
+        "Cognitive Window End",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
+    "chronotype": NameMapEntity("Chronotype", state_class=None),
+    "social_jetlag": NameMapEntity("Social Jetlag", "s", SensorDeviceClass.DURATION),
+    "recommended_bedtime": NameMapEntity(
+        "Recommended Bedtime",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        state_class=None
+    ),
     "next_alarm": NameMapEntity(
         "Next Alarm",
         device_class=SensorDeviceClass.TIMESTAMP,
