@@ -32,6 +32,14 @@ NAME_MAP = {
     "time_slept": NameMapEntity(
         "Time Slept", "s", SensorDeviceClass.DURATION
     ),
+    "snore_duration": NameMapEntity(
+        "Snore Duration", "s", SensorDeviceClass.DURATION
+    ),
+    "heavy_snore_duration": NameMapEntity(
+        "Heavy Snore Duration", "s", SensorDeviceClass.DURATION
+    ),
+    "snore_percent": NameMapEntity("Snore Percent", "%"),
+    "heavy_snore_percent": NameMapEntity("Heavy Snore Percent", "%"),
     "presence_start": NameMapEntity(
         "Presence Start",
         device_class=SensorDeviceClass.TIMESTAMP,
