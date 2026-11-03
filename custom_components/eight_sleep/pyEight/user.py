@@ -462,7 +462,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return how far the latest night fell short of the sleep baseline.
 
         This is the latest night only (baseline minus time slept), not a running
-        total. None while Eight Sleep is still calibrating the baseline.
+        total, and it goes negative after a night longer than the baseline.
+        None while Eight Sleep is still calibrating the baseline.
         """
         debt = self._get_trend(0, ("sleepQualityScore", "sleepDebt"))
         if not isinstance(debt, dict) or debt.get("isCalibrating"):

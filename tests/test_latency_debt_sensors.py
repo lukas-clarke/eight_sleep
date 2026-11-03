@@ -109,6 +109,25 @@ async def test_sensors_are_none_without_the_data():
 
 
 @pytest.mark.asyncio
+async def test_sleep_debt_is_negative_after_a_night_above_baseline():
+    """Real responses report a longer-than-baseline night as negative debt."""
+    day = {
+        "day": "2026-08-21",
+        "sleepDuration": 31470,
+        "sleepQualityScore": {
+            "sleepDebt": {
+                "dailySleepDebtSeconds": -6182.4,
+                "baselineSleepDurationSeconds": 25287.6,
+                "isCalibrating": False,
+            },
+        },
+    }
+    sensors = await _setup_sensors([day])
+
+    assert sensors["daily_sleep_debt"].native_value == -6182
+
+
+@pytest.mark.asyncio
 async def test_sleep_debt_is_none_while_calibrating():
     day = {
         "day": "2026-08-21",
