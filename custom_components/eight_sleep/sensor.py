@@ -79,6 +79,7 @@ ATTR_ALARM_ID = "Alarm ID"
 _LOGGER = logging.getLogger(__name__)
 
 EIGHT_USER_SENSORS = [
+    "autopilot_adjustments",
     "current_sleep_fitness_score",
     "current_sleep_quality_score",
     "current_sleep_routine_score",
@@ -378,6 +379,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return device state attributes."""
         attr = None
+        if self._sensor == "autopilot_adjustments" and self._user_obj:
+            return self._user_obj.autopilot_adjustment_attributes
         if "current" in self._sensor and self._user_obj:
             if "fitness" in self._sensor:
                 attr = self._user_obj.current_fitness_values

@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTOPILOT_UPDATE_INTERVAL = timedelta(hours=1)
+
 
 class EightUser:  # pylint: disable=too-many-public-methods
     """Class for handling data of each eight user."""
@@ -48,6 +50,11 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
         self._pillow_data: dict[str, Any] | None = None
+        self._autopilot_details: dict[str, Any] = {}
+        self._autopilot_events: list[dict[str, Any]] | None = None
+        self._last_autopilot_details_update: datetime | None = None
+        self._last_autopilot_events_update: datetime | None = None
+        self._autopilot_events_day: str | None = None
 
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
@@ -714,6 +721,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         # Update temperature data (current temp, smart schedule, etc.)
         await self._update_temperature_data()
         await self.update_pillow_data()
+        await self.update_autopilot_details()
+        await self.update_autopilot_events()
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
@@ -721,6 +730,110 @@ class EightUser:  # pylint: disable=too-many-public-methods
             self.target_heating_temp = heating_level_to_temp(
                 self.target_heating_level, "c"
             )
+
+    @property
+    def autopilot_active(self) -> bool | None:
+        """Return whether Autopilot is active for this user."""
+        return self._autopilot_details.get("isAutopilotActive")
+
+    @property
+    def autopilot_attributes(self) -> dict[str, Any]:
+        """Return the mode and calibration status."""
+        return {
+            "autopilot_mode": self._autopilot_details.get("userMode", {}).get("autopilotMode"),
+            "calibrated": self._autopilot_details.get("calibrationStatus", {}).get("isCalibrated"),
+        }
+
+    @property
+    def autopilot_adjustments(self) -> int | None:
+        """Return the automatic adjustment count for the latest session."""
+        if self._autopilot_events is None:
+            return None
+        return sum(event.get("actionType") == "autopilot-update" for event in self._autopilot_events)
+
+    @property
+    def autopilot_adjustment_attributes(self) -> dict[str, Any]:
+        """Return manual counts and up to 50 chronological automatic adjustments."""
+        events = self._autopilot_events
+        if events is None:
+            return {"manual_adjustments": None, "adjustments": []}
+        automatic = sorted(
+            (event for event in events if event.get("actionType") == "autopilot-update"),
+            key=lambda event: datetime.fromisoformat(event["eventTime"].replace("Z", "+00:00")),
+        )
+        return {
+            "manual_adjustments": sum(event.get("actionType") == "dial-update" for event in events),
+            "adjustments": [
+                {"time": event.get("eventTime"), "from_level": event.get("previousLevel"),
+                 "to_level": event.get("currentLevel"), "phase": event.get("currentPhase")}
+                for event in automatic[:50]
+            ],
+        }
+
+    async def update_autopilot_details(self) -> None:
+        """Refresh Autopilot status at most hourly, retaining data on failure."""
+        now = datetime.now(timezone.utc)
+        if (
+            self._last_autopilot_details_update is not None
+            and now - self._last_autopilot_details_update < AUTOPILOT_UPDATE_INTERVAL
+        ):
+            return
+        self._last_autopilot_details_update = now
+        try:
+            url = APP_API_URL + f"v1/users/{self.user_id}/autopilotDetails"
+            data = await self.device.api_request("get", url)
+            if not isinstance(data, dict) or any(
+                key in data and not isinstance(data[key], dict)
+                for key in ("userMode", "calibrationStatus")
+            ):
+                raise ValueError("Unexpected Autopilot details shape")
+            self._autopilot_details = data
+        except (RequestError, ValueError, TypeError) as err:
+            _LOGGER.debug("Unable to fetch Autopilot details for %s: %s", self.user_id, err)
+
+    async def update_autopilot_events(self) -> None:
+        """Refresh the latest session's temperature events at most hourly.
+
+        A new trend day is fetched right away, and the previous night's events
+        are dropped first so a failed fetch reads as unknown, not as last
+        night. presenceStart itself is not the key: it moves during a session.
+        """
+        now = datetime.now(timezone.utc)
+        start = self._get_trend(0, "presenceStart")
+        if not start:
+            return
+        day = self._get_trend(0, "day")
+        if day != self._autopilot_events_day:
+            self._autopilot_events_day = day
+            self._autopilot_events = None
+        elif (
+            self._last_autopilot_events_update is not None
+            and now - self._last_autopilot_events_update < AUTOPILOT_UPDATE_INTERVAL
+        ):
+            return
+        self._last_autopilot_events_update = now
+        try:
+            end = self._get_trend(0, "presenceEnd")
+            start_time = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            end_time = datetime.fromisoformat(end.replace("Z", "+00:00")) if end else now
+            params = {
+                "from": start_time.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "to": end_time.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            }
+            url = APP_API_URL + f"v1/users/{self.user_id}/temp-events"
+            data = await self.device.api_request("get", url, params=params)
+            if not isinstance(data, dict) or not isinstance(data.get("events"), list):
+                raise ValueError("Unexpected temperature events shape")
+            for event in data["events"]:
+                if not isinstance(event, dict):
+                    raise ValueError("Unexpected temperature event shape")
+                if event.get("actionType") == "autopilot-update":
+                    timestamp = datetime.fromisoformat(event.get("eventTime", "").replace("Z", "+00:00"))
+                    if timestamp.tzinfo is None:
+                        raise ValueError("Temperature event has no timezone")
+            self._autopilot_events = data["events"]
+        except (RequestError, ValueError, TypeError, AttributeError) as err:
+            _LOGGER.debug("Unable to fetch Autopilot events for %s: %s", self.user_id, err)
 
     # ── Pillow (Pod 5 accessory, its own temperature-controlled device) ────────
     #
