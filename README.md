@@ -109,6 +109,13 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
 | Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
 | Side                    | Side  | String      | Yes      | The current side that this user side is set to                                                                                                                                                  |
+| Exercise Window Start   | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Exercise Window End     | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Cognitive Window Start  | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Cognitive Window End    | Side  | Datetime    | Yes      |                                                                                                                                                                                                 |
+| Chronotype              | Side  | String      | Yes      |                                                                                                                                                                                                 |
+| Social Jetlag           | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
+| Recommended Bedtime     | Side  | Datetime    | Yes      | Next local occurrence; standard_deviation and days_analyzed attributes. Refreshed hourly.                                                                                                       |
 
 Sensor values are updated every 5 minutes
 
