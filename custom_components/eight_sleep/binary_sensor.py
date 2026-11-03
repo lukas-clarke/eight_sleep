@@ -19,6 +19,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from . import EightSleepBaseEntity, EightSleepConfigEntryData
 from .const import DOMAIN
 
+AUTOPILOT_DESCRIPTION = BinarySensorEntityDescription(
+    key="autopilot_active",
+    name="Autopilot Active",
+    icon="mdi:auto-fix",
+)
+
 BED_PRESENCE_DESCRIPTION = BinarySensorEntityDescription(
     key="bed_presence",
     name="Bed Presence",
@@ -49,6 +55,14 @@ async def async_setup_entry(
             user,
             BED_PRESENCE_DESCRIPTION,
             lambda user=user: user.bed_presence))
+
+        entities.append(EightBinaryEntity(
+            entry,
+            config_entry_data.user_coordinator,
+            eight,
+            user,
+            AUTOPILOT_DESCRIPTION,
+            lambda user=user: user.autopilot_active))
 
     base_user = eight.base_user
     if base_user:
@@ -84,3 +98,9 @@ class EightBinaryEntity(EightSleepBaseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         return self._value_getter()
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        if self.entity_description.key == "autopilot_active" and self._user_obj:
+            return self._user_obj.autopilot_attributes
+        return None
