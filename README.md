@@ -108,6 +108,10 @@ There are a few possible sensor values for each Eight Sleep side. Some ones with
 | Routine Score           | Side  | Measurement | Yes      |                                                                                                                                                                                                 |
 | Sleep Stage             | Side  | String      | **No**   |                                                                                                                                                                                                 |
 | Time Slept              | Side  | Duration    | Yes      |                                                                                                                                                                                                 |
+| Snore Duration          | Side  | Duration    | Yes      | Time spent snoring in the latest night.                                                                                                                                                         |
+| Heavy Snore Duration    | Side  | Duration    | Yes      | Time spent snoring heavily in the latest night.                                                                                                                                                 |
+| Snore Percent           | Side  | Percent     | Yes      | Share of the latest night's sleep spent snoring.                                                                                                                                                |
+| Heavy Snore Percent     | Side  | Percent     | Yes      | Share of the latest night's sleep spent snoring heavily.                                                                                                                                        |
 | Side                    | Side  | String      | Yes      | The current side that this user side is set to                                                                                                                                                  |
 
 Sensor values are updated every 5 minutes
