@@ -75,6 +75,7 @@ ATTR_FIT_ASLEEP_SCORE = "Fitness Asleep Score"
 ATTR_FIT_OUT_SCORE = "Fitness Out-of-Bed Score"
 ATTR_FIT_WAKEUP_SCORE = "Fitness Wakeup Score"
 ATTR_ALARM_ID = "Alarm ID"
+ATTR_LAST_INSERT_REPLACEMENT = "Last Replacement"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ EIGHT_ROOM_SENSORS = [
     "is_priming",
     "has_water",
     "last_prime",
+    "next_insert_replacement",
 ]
 
 VALID_TARGET_HEAT = vol.All(vol.Coerce(int), vol.Clamp(min=-100, max=100))
@@ -494,6 +496,8 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         elif self._sensor == "last_prime":
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        elif self._sensor == "next_insert_replacement":
+            self._attr_device_class = SensorDeviceClass.DATE
         else:
             self._attr_state_class = CONF_BINARY_SENSORS
             self._attr_device_class = CONF_BINARY_SENSORS
@@ -503,3 +507,10 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
         """Return the state of the sensor."""
         # return self._eight.room_temperature
         return getattr(self._eight, self._sensor)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return device state attributes."""
+        if self._sensor == "next_insert_replacement":
+            return {ATTR_LAST_INSERT_REPLACEMENT: self._eight.last_insert_replacement}
+        return None
