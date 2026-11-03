@@ -93,6 +93,9 @@ EIGHT_USER_SENSORS = [
     "bed_state_type",
     "presence_start",
     "presence_end",
+    "sleep_latency",
+    "out_of_bed_latency",
+    "daily_sleep_debt",
     "side",
     "routines",
 ]

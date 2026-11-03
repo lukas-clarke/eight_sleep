@@ -42,6 +42,15 @@ NAME_MAP = {
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
+    "sleep_latency": NameMapEntity(
+        "Time to Fall Asleep", "s", SensorDeviceClass.DURATION
+    ),
+    "out_of_bed_latency": NameMapEntity(
+        "Time to Get Out of Bed", "s", SensorDeviceClass.DURATION
+    ),
+    "daily_sleep_debt": NameMapEntity(
+        "Daily Sleep Debt", "s", SensorDeviceClass.DURATION
+    ),
     "next_alarm": NameMapEntity(
         "Next Alarm",
         device_class=SensorDeviceClass.TIMESTAMP,

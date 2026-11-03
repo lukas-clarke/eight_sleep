@@ -448,6 +448,30 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self._get_routine_score(0, "latencyOutSeconds")
 
     @property
+    def sleep_latency(self) -> int | None:
+        """Return seconds from getting into bed to falling asleep."""
+        return self._get_trend(0, ("sleepRoutineScore", "latencyAsleepSeconds", "current"))
+
+    @property
+    def out_of_bed_latency(self) -> int | None:
+        """Return seconds from waking up to getting out of bed."""
+        return self._get_trend(0, ("sleepRoutineScore", "latencyOutSeconds", "current"))
+
+    @property
+    def daily_sleep_debt(self) -> int | None:
+        """Return how far the latest night fell short of the sleep baseline.
+
+        This is the latest night only (baseline minus time slept), not a running
+        total, and it goes negative after a night longer than the baseline.
+        None while Eight Sleep is still calibrating the baseline.
+        """
+        debt = self._get_trend(0, ("sleepQualityScore", "sleepDebt"))
+        if not isinstance(debt, dict) or debt.get("isCalibrating"):
+            return None
+        seconds = debt.get("dailySleepDebtSeconds")
+        return None if seconds is None else round(seconds)
+
+    @property
     def current_hrv(self) -> float | None:
         """Return wakeup consistency score for latest session."""
         return self._get_trend(0, ("sleepQualityScore", "hrv", "current"))
