@@ -457,6 +457,24 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return wakeup consistency score for latest session."""
         return self._get_trend(0, ("sleepQualityScore", "respiratoryRate", "current"))
 
+    def personal_range(self, metric: str) -> dict[str, Any] | None:
+        """Return the latest night's personal range for a sleep quality metric.
+
+        Eight Sleep scores heartRate, hrv and respiratoryRate against a range
+        it learns from the user's own nights. "night" is the value it scored,
+        which for heart rate is not the live reading the sensor shows. None
+        when the metric is absent.
+        """
+        values = self._get_trend(0, ("sleepQualityScore", metric))
+        if not isinstance(values, dict):
+            return None
+        return {
+            "night": values.get("current"),
+            "low": values.get("lowerRange"),
+            "high": values.get("upperRange"),
+            "seven_day_average": values.get("inclusive7DayAverage"),
+        }
+
     @property
     def current_wakeup_consistency_score(self) -> int | None:
         """Return wakeup consistency score for latest session."""
