@@ -47,6 +47,11 @@ NAME_MAP = {
         device_class=SensorDeviceClass.TIMESTAMP,
         state_class=None
     ),
+    "snore_mitigation_events": NameMapEntity("Snore Mitigation Events"),
+    "snoring_reduction_percent": NameMapEntity("Snoring Reduction", "%"),
+    "elevation_duration": NameMapEntity(
+        "Elevation Duration", "s", SensorDeviceClass.DURATION
+    ),
     "target_heating_temp": NameMapEntity(
         "Target Temperature",
         "°C",

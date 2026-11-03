@@ -463,6 +463,21 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self._get_routine_score(0, "wakeupConsistency")
 
     @property
+    def snore_mitigation_events(self) -> int | None:
+        """Return how many times the Base acted on snoring in the latest session."""
+        return self._get_trend(0, "mitigationEvents")
+
+    @property
+    def snoring_reduction_percent(self) -> int | None:
+        """Return how much the Base cut snoring in the latest session."""
+        return self._get_trend(0, "snoringReductionPercent")
+
+    @property
+    def elevation_duration(self) -> int | None:
+        """Return seconds the Base spent raised in the latest session."""
+        return self._get_trend(0, "elevationDuration")
+
+    @property
     def current_fitness_session_date(self) -> str | None:
         """Return date/time for start of last session data."""
         return self._get_trend(0, "day")

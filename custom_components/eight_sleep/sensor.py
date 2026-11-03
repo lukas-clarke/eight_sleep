@@ -98,6 +98,12 @@ EIGHT_USER_SENSORS = [
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
+# Snore mitigation from the trends data; only filled in with a Base.
+EIGHT_BASE_USER_SENSORS = [
+    "snore_mitigation_events",
+    "snoring_reduction_percent",
+    "elevation_duration",
+]
 EIGHT_ROOM_SENSORS = [
     "room_temperature",
     "need_priming",
@@ -145,6 +151,11 @@ async def async_setup_entry(
             EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
+        if eight.has_base:
+            all_sensors.extend(
+                EightUserSensor(entry, user_coordinator, eight, user, sensor)
+                for sensor in EIGHT_BASE_USER_SENSORS
+            )
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
