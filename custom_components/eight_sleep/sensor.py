@@ -64,6 +64,9 @@ ATTR_REM_PERC = f"REM Sleep {PERCENTAGE}"
 ATTR_TNT = "Tosses & Turns"
 ATTR_SLEEP_STAGE = "Sleep Stage"
 ATTR_TARGET_HEAT = "Target Heating Level"
+ATTR_BEDTIME_HEAT = "Bedtime Heating Level"
+ATTR_EARLY_HEAT = "Early Heating Level"
+ATTR_LATE_HEAT = "Late Heating Level"
 ATTR_TARGET_BED_TEMP = "Target Bed Temperature"
 ATTR_ACTIVE_HEAT = "Heating Active"
 ATTR_DURATION_HEAT = "Heating Time Remaining"
@@ -283,10 +286,15 @@ class EightHeatSensor(EightSleepBaseEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return device state attributes."""
         assert self._user_obj
+        # Smart schedule levels, i.e. the app's Bedtime / Night / Dawn temperatures
+        smart = self._user_obj.smart_schedule or {}
         return {
             ATTR_TARGET_HEAT: self._user_obj.target_heating_level,
             ATTR_ACTIVE_HEAT: self._user_obj.now_heating,
             ATTR_DURATION_HEAT: self._user_obj.heating_remaining,
+            ATTR_BEDTIME_HEAT: smart.get("bedTimeLevel"),
+            ATTR_EARLY_HEAT: smart.get("initialSleepLevel"),
+            ATTR_LATE_HEAT: smart.get("finalSleepLevel"),
         }
 
 

@@ -934,6 +934,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         sleep_stages_levels[sleep_stage] = level
         data = {"smart": sleep_stages_levels}
         await self.device.api_request("PUT", url, data=data)
+        # Reflect the change right away instead of waiting for the next user poll
+        self.smart_schedule = sleep_stages_levels
 
     async def increment_heating_level(self, offset: int) -> None:
         """Increment heating level with offset"""
