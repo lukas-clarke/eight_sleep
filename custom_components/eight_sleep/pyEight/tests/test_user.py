@@ -71,6 +71,23 @@ class TestEightUser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls[0], call('PUT', expected_url, data={'currentLevel': 50}))
         self.assertEqual(calls[1], call('PUT', expected_url, data={'timeBased': {'level': 50, 'durationSeconds': 7200}}))
 
+    async def test_set_smart_heating_level_updates_cached_schedule(self):
+        expected_url = f"{APP_API_URL}v1/users/{self.user_id}/temperature"
+        self.mock_eight_device.api_request = AsyncMock(side_effect=[
+            {"smart": {"bedTimeLevel": -20, "initialSleepLevel": 20, "finalSleepLevel": 20}},  # GET
+            {},  # PUT
+        ])
+
+        await self.user.set_smart_heating_level(30, "initialSleepLevel")
+
+        expected = {"bedTimeLevel": -20, "initialSleepLevel": 30, "finalSleepLevel": 20}
+        self.assertEqual(
+            self.mock_eight_device.api_request.call_args_list[1],
+            call('PUT', expected_url, data={"smart": expected}),
+        )
+        # The cached schedule (exposed as sensor attributes) reflects the change immediately
+        self.assertEqual(self.user.smart_schedule, expected)
+
     @patch('custom_components.eight_sleep.pyEight.user.datetime') # Mock datetime within user.py
     async def test_set_away_mode_start(self, mock_datetime):
         self.mock_eight_device.api_request = AsyncMock(return_value={})
