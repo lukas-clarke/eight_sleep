@@ -202,7 +202,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ),
         ATTR_SW_VERSION: eight.device_data.get("firmwareVersion", UNDEFINED),
     }
-    dev_reg.async_get_or_create(
+    hub_device = dev_reg.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, _get_device_unique_id(eight))},
         name=f"{entry.title} Eight Sleep Hub",
@@ -215,7 +215,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
             name=f"{(user.user_profile or {}).get('firstName') or user.side or 'Eight Sleep'}'s Eight Sleep Side",
-            via_device=(DOMAIN, _get_device_unique_id(eight)),
+            via_device_id=hub_device.id,
             **device_data,
         )
 
@@ -232,7 +232,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, base_entity=True))},
             name=f"{entry.title} Base",
-            via_device=(DOMAIN, _get_device_unique_id(eight)),
+            via_device_id=hub_device.id,
             **base_device_data,
         )
 
