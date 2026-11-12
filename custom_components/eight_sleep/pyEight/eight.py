@@ -75,6 +75,7 @@ class EightSleep:
         self.device_id: str | None = device_id
 
         self.users: dict[str, EightUser] = {}
+        self._alarms_subscription_warned: set[str] = set()
 
         self._user_id: str | None = None
         self._token: Token | None = None
@@ -572,10 +573,23 @@ class EightSleep:
                         error_message += f" - Response: {error_text}"
                     except Exception as text_exc:
                         error_message += f" - Failed to get response text: {text_exc}"
-                _LOGGER.error(error_message)
-                raise RequestError(
+                error = RequestError(
                     error_message, status=resp.status, error_details=error_details
                 )
+                if (
+                    method.upper() == "GET"
+                    and url.startswith(APP_API_URL + "v2/users/")
+                    and url.endswith("/alarms")
+                    and EightUser._is_subscription_required_error(error)
+                ):
+                    if url in self._alarms_subscription_warned:
+                        _LOGGER.debug(error_message)
+                    else:
+                        _LOGGER.warning(error_message)
+                        self._alarms_subscription_warned.add(url)
+                else:
+                    _LOGGER.error(error_message)
+                raise error
 
             # Successful response
             if return_json:
