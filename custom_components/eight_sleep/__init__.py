@@ -202,7 +202,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ),
         ATTR_SW_VERSION: eight.device_data.get("firmwareVersion", UNDEFINED),
     }
-    dev_reg.async_get_or_create(
+    hub = dev_reg.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, _get_device_unique_id(eight))},
         name=f"{entry.title} Eight Sleep Hub",
@@ -211,13 +211,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for user in eight.users.values():
         assert user.user_profile
 
-        dev_reg.async_get_or_create(
+        side = dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
             name=f"{(user.user_profile or {}).get('firstName') or user.side or 'Eight Sleep'}'s Eight Sleep Side",
-            via_device=(DOMAIN, _get_device_unique_id(eight)),
             **device_data,
         )
+        dev_reg.async_update_device(side.id, via_device_id=hub.id)
 
     if eight.base_user:
         base_hardware_info = eight.base_user.base_data.get("hardwareInfo") or {}
@@ -228,13 +228,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ATTR_SW_VERSION: base_hardware_info.get('softwareVersion'),
         }
 
-        dev_reg.async_get_or_create(
+        base = dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, base_entity=True))},
             name=f"{entry.title} Base",
-            via_device=(DOMAIN, _get_device_unique_id(eight)),
             **base_device_data,
         )
+        dev_reg.async_update_device(base.id, via_device_id=hub.id)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = EightSleepConfigEntryData(
         eight, device_coordinator, user_coordinator, base_coordinator, speaker_coordinator
