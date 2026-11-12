@@ -114,8 +114,8 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         self._hvac_mode_task: asyncio.Task[Any] | None = None
         self._hvac_mode_task_mode: HVACMode | None = None
         # Set temperature unit and ranges based on Home Assistant config
-        self._attr_temperature_unit = hass.config.units.temperature_unit
-        if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
+        self._attr_native_temperature_unit = hass.config.units.temperature_unit
+        if self._attr_native_temperature_unit == UnitOfTemperature.CELSIUS:
             self._attr_min_temp = MIN_TEMP_C
             self._attr_max_temp = MAX_TEMP_C
         else:
@@ -131,8 +131,8 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
                 try:
                     # Ensure heating_level is treated as a number
                     numeric_heating_level = float(heating_level)
-                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
-                    self._attr_target_temperature = heating_level_to_temp(numeric_heating_level, unit)
+                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
+                    self._attr_native_target_temperature = heating_level_to_temp(numeric_heating_level, unit)
                 except ValueError:
                     _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
 
@@ -145,13 +145,15 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
             temp = last_state.attributes.get(ATTR_TEMPERATURE)
             if temp is not None:
                 try:
-                    self._attr_target_temperature = float(temp)
-                    _LOGGER.debug("Restored target temperature %s from previous state", self._attr_target_temperature)
+                    self._attr_native_target_temperature = float(temp)
+                    _LOGGER.debug(
+                        "Restored target temperature %s from previous state", self._attr_native_target_temperature
+                    )
                 except (ValueError, TypeError):
                     _LOGGER.warning("Failed to restore target temperature from state: %s", temp)
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the current temperature."""
         # device data seems to be more up-to-date than user data
         heating_level_key = f"{self._user_obj.corrected_side_for_key}HeatingLevel"
@@ -159,7 +161,7 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         if heating_level is not None:
             try:
                 numeric_heating_level = float(heating_level)
-                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
                 return heating_level_to_temp(numeric_heating_level, unit)
             except ValueError:
                 _LOGGER.warning(f"Could not convert heating level '{heating_level}' to a number for key {heating_level_key}")
@@ -197,19 +199,19 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         return HVACAction.IDLE
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
         # If the device is OFF, show the last known user/autopilot target
         # instead of the API's reported "0" (27C).
         # When OFF, prefer the stored target temperature; if none, fall back to Autopilot schedule
         if self.hvac_mode == HVACMode.OFF:
-            if self._attr_target_temperature is not None:
-                _LOGGER.debug(f"Target Temp (OFF): Returning stored value {self._attr_target_temperature}")
-                return self._attr_target_temperature
+            if self._attr_native_target_temperature is not None:
+                _LOGGER.debug(f"Target Temp (OFF): Returning stored value {self._attr_native_target_temperature}")
+                return self._attr_native_target_temperature
             # Try Autopilot temperature via user helper
             if self._user_obj:
                 autopilot_temp = self._user_obj.get_autopilot_target_temp(
-                    unit=convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                    unit=convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
                 )
                 if autopilot_temp is not None:
                     _LOGGER.debug(f"Target Temp (OFF): Returning Autopilot value {autopilot_temp}")
@@ -224,12 +226,12 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         if raw_target_temp is not None:
             try:
                 numeric_raw_target_temp = float(raw_target_temp)
-                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
                 return heating_level_to_temp(numeric_raw_target_temp, unit)
             except ValueError:
                 _LOGGER.warning(f"Could not convert target heating level '{raw_target_temp}' to a number for key {heating_level_key}")
-                # Fall through to return self._attr_target_temperature
-        return self._attr_target_temperature
+                # Fall through to return self._attr_native_target_temperature
+        return self._attr_native_target_temperature
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -250,11 +252,13 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
             if raw_target_temp is not None:
                 try:
                     numeric_raw_target_temp = float(raw_target_temp)
-                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+                    unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
                     new_target = heating_level_to_temp(numeric_raw_target_temp, unit)
-                    if self._attr_target_temperature != new_target:
-                        _LOGGER.debug(f"Syncing Autopilot/External change: {self._attr_target_temperature} -> {new_target}")
-                        self._attr_target_temperature = new_target
+                    if self._attr_native_target_temperature != new_target:
+                        _LOGGER.debug(
+                            f"Syncing Autopilot/External change: {self._attr_native_target_temperature} -> {new_target}"
+                        )
+                        self._attr_native_target_temperature = new_target
                 except ValueError:
                     pass
         super()._handle_coordinator_update()
@@ -279,9 +283,9 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
 
     async def _async_apply_heating_level(self, temperature: float) -> None:
         """Push a target temperature to the API without changing power state."""
-        self._attr_target_temperature = temperature
+        self._attr_native_target_temperature = temperature
 
-        unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.temperature_unit)
+        unit = convert_hass_temp_unit_to_pyeight_temp_unit(self.native_temperature_unit)
         level = temp_to_heating_level(temperature, unit)
 
         # Set temperature level with default duration
@@ -338,9 +342,11 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
 
                 if hvac_mode != HVACMode.OFF:
                     # Restore the target temperature if we have one
-                    if self._attr_target_temperature is not None:
-                        _LOGGER.debug("Turn On: Restoring target temperature to %s", self._attr_target_temperature)
-                        await self._async_apply_heating_level(self._attr_target_temperature)
+                    if self._attr_native_target_temperature is not None:
+                        _LOGGER.debug(
+                            "Turn On: Restoring target temperature to %s", self._attr_native_target_temperature
+                        )
+                        await self._async_apply_heating_level(self._attr_native_target_temperature)
 
             # Refresh state
             await self.coordinator.async_request_refresh()
@@ -370,7 +376,7 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
             temperature = None
 
         if temperature is not None:
-            self._attr_target_temperature = temperature
+            self._attr_native_target_temperature = temperature
 
         if requested_hvac_mode is not None:
             await self.async_set_hvac_mode(requested_hvac_mode)
@@ -434,21 +440,21 @@ class EightSleepPillowThermostat(EightSleepBaseEntity, ClimateEntity):
         )
 
     @property
-    def temperature_unit(self) -> str:
+    def native_temperature_unit(self) -> str:
         """Return the unit Home Assistant is configured for."""
         return self._hass.config.units.temperature_unit
 
     @property
     def min_temp(self) -> float:
         """Return the minimum settable temperature."""
-        if self.temperature_unit == UnitOfTemperature.CELSIUS:
+        if self.native_temperature_unit == UnitOfTemperature.CELSIUS:
             return MIN_TEMP_C
         return MIN_TEMP_F
 
     @property
     def max_temp(self) -> float:
         """Return the maximum settable temperature."""
-        if self.temperature_unit == UnitOfTemperature.CELSIUS:
+        if self.native_temperature_unit == UnitOfTemperature.CELSIUS:
             return MAX_TEMP_C
         return MAX_TEMP_F
 
@@ -475,7 +481,7 @@ class EightSleepPillowThermostat(EightSleepBaseEntity, ClimateEntity):
         return HVACAction.HEATING if level > 0 else HVACAction.COOLING
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the pillow's target temperature."""
         if not self._user_obj:
             return None
