@@ -138,3 +138,16 @@ async def test_sleep_debt_is_none_while_calibrating():
     sensors = await _setup_sensors([day])
 
     assert sensors["daily_sleep_debt"].native_value is None
+
+
+@pytest.mark.asyncio
+async def test_sleep_debt_is_none_when_the_api_sends_the_string_none():
+    day = {
+        "day": "2026-08-21",
+        "sleepQualityScore": {
+            "sleepDebt": {"dailySleepDebtSeconds": "None", "isCalibrating": False},
+        },
+    }
+    sensors = await _setup_sensors([day])
+
+    assert sensors["daily_sleep_debt"].native_value is None

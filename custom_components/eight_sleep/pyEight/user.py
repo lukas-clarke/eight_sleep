@@ -588,7 +588,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         debt = self._get_trend(0, ("sleepQualityScore", "sleepDebt"))
         if not isinstance(debt, dict) or debt.get("isCalibrating"):
             return None
-        seconds = debt.get("dailySleepDebtSeconds")
+        seconds = self._clean(debt.get("dailySleepDebtSeconds"))
         return None if seconds is None else round(seconds)
 
     @property
