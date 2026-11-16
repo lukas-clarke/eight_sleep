@@ -142,7 +142,8 @@ async def test_update_user_throttles_recommendation():
     user, _ = await setup_sensors([])
     user.device.api_request.return_value = RECOMMENDATION
     for method in ("get_user_side", "update_trend_data", "update_routines_data",
-                   "get_bed_state_type", "_update_temperature_data", "update_pillow_data"):
+                   "get_bed_state_type", "_update_temperature_data", "update_pillow_data",
+                   "update_autopilot_details", "update_autopilot_events"):
         setattr(user, method, AsyncMock(return_value="left" if method == "get_user_side" else None))
     now = datetime(2026, 9, 18, 12, tzinfo=timezone.utc)
     with patch(MODULE + ".datetime", wraps=datetime) as clock:

@@ -51,6 +51,7 @@ def user():
     user.get_bed_state_type = AsyncMock(return_value="off")
     user._update_temperature_data = AsyncMock()
     user.update_pillow_data = AsyncMock()
+    user.update_bedtime_recommendation = AsyncMock()
 
     async def response(method, url, **kwargs):
         if url.endswith("/autopilotDetails"):
