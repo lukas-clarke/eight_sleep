@@ -19,7 +19,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfTemperature,
-    CONF_BINARY_SENSORS,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -64,6 +63,9 @@ ATTR_REM_PERC = f"REM Sleep {PERCENTAGE}"
 ATTR_TNT = "Tosses & Turns"
 ATTR_SLEEP_STAGE = "Sleep Stage"
 ATTR_TARGET_HEAT = "Target Heating Level"
+ATTR_BEDTIME_HEAT = "Bedtime Heating Level"
+ATTR_EARLY_HEAT = "Early Heating Level"
+ATTR_LATE_HEAT = "Late Heating Level"
 ATTR_TARGET_BED_TEMP = "Target Bed Temperature"
 ATTR_ACTIVE_HEAT = "Heating Active"
 ATTR_DURATION_HEAT = "Heating Time Remaining"
@@ -75,6 +77,18 @@ ATTR_FIT_ASLEEP_SCORE = "Fitness Asleep Score"
 ATTR_FIT_OUT_SCORE = "Fitness Out-of-Bed Score"
 ATTR_FIT_WAKEUP_SCORE = "Fitness Wakeup Score"
 ATTR_ALARM_ID = "Alarm ID"
+ATTR_LAST_INSERT_REPLACEMENT = "Last Replacement"
+ATTR_SCORED_NIGHT_VALUE = "Scored Night Value"
+ATTR_PERSONAL_RANGE_LOW = "Personal Range Low"
+ATTR_PERSONAL_RANGE_HIGH = "Personal Range High"
+ATTR_SEVEN_DAY_AVG = "7-Day Average"
+
+# Sensors whose sleep quality metric carries a personal range in the trends data.
+PERSONAL_RANGE_METRICS = {
+    "current_heart_rate": "heartRate",
+    "current_hrv": "hrv",
+    "current_breath_rate": "respiratoryRate",
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,27 +98,47 @@ EIGHT_USER_SENSORS = [
     "current_sleep_quality_score",
     "current_sleep_routine_score",
     "time_slept",
+    "snore_duration",
+    "heavy_snore_duration",
+    "snore_percent",
+    "heavy_snore_percent",
     "current_heart_rate",
     "current_hrv",
     "current_breath_rate",
     "bed_temperature",
+    "current_measured_bed_temp",
     "target_heating_temp",
     "sleep_stage",
     "next_alarm",
     "bed_state_type",
     "presence_start",
     "presence_end",
+    "exercise_window_start",
+    "exercise_window_end",
+    "cognitive_window_start",
+    "cognitive_window_end",
+    "chronotype",
+    "social_jetlag",
+    "recommended_bedtime",
     "side",
     "routines",
 ]
 
 EIGHT_HEAT_SENSORS = ["bed_state"]
+# Priming / water / firmware-updating / online are now proper binary_sensors
+# (see binary_sensor.py) so HA reads their on/off transitions correctly.
+# Snore mitigation from the trends data; only filled in with a Base.
+EIGHT_BASE_USER_SENSORS = [
+    "snore_mitigation_events",
+    "snoring_reduction_percent",
+    "elevation_duration",
+]
 EIGHT_ROOM_SENSORS = [
     "room_temperature",
-    "need_priming",
-    "is_priming",
-    "has_water",
     "last_prime",
+    "last_heard",
+    "firmware_version",
+    "next_insert_replacement",
 ]
 
 VALID_TARGET_HEAT = vol.All(vol.Coerce(int), vol.Clamp(min=-100, max=100))
@@ -146,6 +180,11 @@ async def async_setup_entry(
             EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
+        if eight.has_base:
+            all_sensors.extend(
+                EightUserSensor(entry, user_coordinator, eight, user, sensor)
+                for sensor in EIGHT_BASE_USER_SENSORS
+            )
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -203,7 +242,9 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SET_ONE_OFF_ALARM,
         {
-            vol.Required("time"): cv.time,
+            # pyEight puts this in a JSON POST body; cv.time yields a
+            # datetime.time the encoder can't serialize, so keep it a string.
+            vol.Required("time"): vol.All(vol.Coerce(str)),
             vol.Optional("enabled", default=True): cv.boolean,
             vol.Optional("vibration_enabled", default=True): cv.boolean,
             vol.Optional("vibration_power_level", default=50): vol.All(
@@ -284,10 +325,15 @@ class EightHeatSensor(EightSleepBaseEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return device state attributes."""
         assert self._user_obj
+        # Smart schedule levels, i.e. the app's Bedtime / Night / Dawn temperatures
+        smart = self._user_obj.smart_schedule or {}
         return {
             ATTR_TARGET_HEAT: self._user_obj.target_heating_level,
             ATTR_ACTIVE_HEAT: self._user_obj.now_heating,
             ATTR_DURATION_HEAT: self._user_obj.heating_remaining,
+            ATTR_BEDTIME_HEAT: smart.get("bedTimeLevel"),
+            ATTR_EARLY_HEAT: smart.get("initialSleepLevel"),
+            ATTR_LATE_HEAT: smart.get("finalSleepLevel"),
         }
 
 
@@ -378,6 +424,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return device state attributes."""
+        if self._sensor == "recommended_bedtime" and self._user_obj:
+            return self._user_obj.bedtime_recommendation_attributes
         attr = None
         if self._sensor == "autopilot_adjustments" and self._user_obj:
             return self._user_obj.autopilot_adjustment_attributes
@@ -469,6 +517,15 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             state_attr[ATTR_SLEEP_STAGE] = attr["stage"]
             state_attr[ATTR_ROOM_TEMP] = room_temp
             state_attr[ATTR_BED_TEMP] = bed_temp
+            if self._sensor in PERSONAL_RANGE_METRICS:
+                personal = self._user_obj.personal_range(
+                    PERSONAL_RANGE_METRICS[self._sensor]
+                )
+                if personal is not None:
+                    state_attr[ATTR_SCORED_NIGHT_VALUE] = personal["night"]
+                    state_attr[ATTR_PERSONAL_RANGE_LOW] = personal["low"]
+                    state_attr[ATTR_PERSONAL_RANGE_HIGH] = personal["high"]
+                    state_attr[ATTR_SEVEN_DAY_AVG] = personal["seven_day_average"]
         elif "last" in self._sensor:
             state_attr[ATTR_AVG_RESP_RATE] = _get_rounded_value(attr, "resp_rate")
             state_attr[ATTR_AVG_HEART_RATE] = _get_rounded_value(attr, "heart_rate")
@@ -495,14 +552,22 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-        elif self._sensor == "last_prime":
+        elif self._sensor in ("last_prime", "last_heard"):
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
-        else:
-            self._attr_state_class = CONF_BINARY_SENSORS
-            self._attr_device_class = CONF_BINARY_SENSORS
+        elif self._sensor == "firmware_version":
+            self._attr_icon = "mdi:chip"
+        elif self._sensor == "next_insert_replacement":
+            self._attr_device_class = SensorDeviceClass.DATE
 
     @property
     def native_value(self) -> int | float | None:
         """Return the state of the sensor."""
         # return self._eight.room_temperature
         return getattr(self._eight, self._sensor)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return device state attributes."""
+        if self._sensor == "next_insert_replacement":
+            return {ATTR_LAST_INSERT_REPLACEMENT: self._eight.last_insert_replacement}
+        return None
