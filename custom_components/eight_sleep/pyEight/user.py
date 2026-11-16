@@ -431,6 +431,26 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self._get_trend(0, ("sleepDuration"))
 
     @property
+    def snore_duration(self) -> int | None:
+        """Return seconds spent snoring in the latest session."""
+        return self._get_trend(0, "snoreDuration")
+
+    @property
+    def heavy_snore_duration(self) -> int | None:
+        """Return seconds spent snoring heavily in the latest session."""
+        return self._get_trend(0, "heavySnoreDuration")
+
+    @property
+    def snore_percent(self) -> int | None:
+        """Return the share of sleep spent snoring in the latest session."""
+        return self._get_trend(0, "snorePercent")
+
+    @property
+    def heavy_snore_percent(self) -> int | None:
+        """Return the share of sleep spent snoring heavily in the latest session."""
+        return self._get_trend(0, "heavySnorePercent")
+
+    @property
     def presence_start(self):
         timestamp = self._get_trend(0, "presenceStart")
         if timestamp:
