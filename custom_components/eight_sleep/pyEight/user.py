@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import statistics
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 from .constants import APP_API_URL, DATE_FORMAT, DATE_TIME_ISO_FORMAT, CLIENT_API_URL, POSSIBLE_SLEEP_STAGES
 from .exceptions import RequestError
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from .eight import EightSleep
 
 _LOGGER = logging.getLogger(__name__)
+
+BEDTIME_RECOMMENDATION_UPDATE_INTERVAL = timedelta(hours=1)
 
 
 class EightUser:  # pylint: disable=too-many-public-methods
@@ -48,6 +51,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         self._player_state: dict | None = None
         self._audio_tracks: list[dict] = []
         self._pillow_data: dict[str, Any] | None = None
+        self._bedtime_recommendation: dict[str, Any] = {}
+        self._last_bedtime_recommendation_update: datetime | None = None
 
     def get_autopilot_target_temp(self, unit: str = "c") -> float | None:
         """Return the temperature that Autopilot (smart schedule) is currently targeting."""
@@ -97,6 +102,101 @@ class EightUser:  # pylint: disable=too-many-public-methods
             return None
         value = current_data.get(keys[-1])
         return None if value == "None" else value
+
+    def _performance_window_value(self, section: str, key: str) -> Any:
+        """Read an available performance window from the latest trend."""
+        if self._get_trend(0, ("performanceWindows", "isAvailable")) is not True:
+            return None
+        return self._get_trend(0, ("performanceWindows", section, key))
+
+    def _performance_window_time(self, section: str, key: str) -> datetime | None:
+        """Combine a window's local time with the local wake date."""
+        try:
+            local_time = datetime.strptime(
+                self._performance_window_value(section, key), "%H:%M:%S"
+            ).time()
+            local_day = datetime.strptime(self._get_trend(0, "day"), "%Y-%m-%d").date()
+            return datetime.combine(local_day, local_time, ZoneInfo(self.device.timezone))
+        except (ValueError, TypeError, KeyError):
+            return None
+
+    @property
+    def exercise_window_start(self) -> datetime | None:
+        """Return the exercise window start."""
+        return self._performance_window_time("exerciseWindow", "exerciseWindowStart")
+
+    @property
+    def exercise_window_end(self) -> datetime | None:
+        """Return the exercise window end."""
+        return self._performance_window_time("exerciseWindow", "exerciseWindowEnd")
+
+    @property
+    def cognitive_window_start(self) -> datetime | None:
+        """Return the cognitive window start."""
+        return self._performance_window_time("cognitiveWindow", "cognitiveWindowStart")
+
+    @property
+    def cognitive_window_end(self) -> datetime | None:
+        """Return the cognitive window end."""
+        return self._performance_window_time("cognitiveWindow", "cognitiveWindowEnd")
+
+    @property
+    def chronotype(self) -> str | None:
+        """Return the chronotype once calibration is complete."""
+        if self._performance_window_value("chronotype", "isCalibrating") is not False:
+            return None
+        value = self._performance_window_value("chronotype", "chronoClass")
+        return value if isinstance(value, str) else None
+
+    @property
+    def social_jetlag(self) -> int | float | None:
+        """Return social jetlag in seconds."""
+        value = self._performance_window_value("socialJetlag", "socialJetlagSeconds")
+        return value if isinstance(value, (int, float)) else None
+
+    @property
+    def recommended_bedtime(self) -> datetime | None:
+        """Return the next occurrence of the recommended local bedtime."""
+        try:
+            local_time = datetime.strptime(
+                self._bedtime_recommendation.get("recommendedBedtime"), "%H:%M:%S"
+            ).time()
+            now = datetime.now(ZoneInfo(self.device.timezone))
+            bedtime = datetime.combine(now.date(), local_time, now.tzinfo)
+            if bedtime <= now:
+                bedtime += timedelta(days=1)
+            return bedtime
+        except (ValueError, TypeError, KeyError):
+            return None
+
+    @property
+    def bedtime_recommendation_attributes(self) -> dict[str, Any]:
+        """Return the cached recommendation's supporting data."""
+        return {
+            "standard_deviation": self._bedtime_recommendation.get("standardDeviation"),
+            "days_analyzed": self._bedtime_recommendation.get("daysAnalyzed"),
+        }
+
+    async def update_bedtime_recommendation(self) -> None:
+        """Fetch at most hourly, retaining the recommendation on errors."""
+        now = datetime.now(timezone.utc)
+        if (
+            self._last_bedtime_recommendation_update is not None
+            and now - self._last_bedtime_recommendation_update
+            < BEDTIME_RECOMMENDATION_UPDATE_INTERVAL
+        ):
+            return
+        self._last_bedtime_recommendation_update = now
+        url = APP_API_URL + f"v1/users/{self.user_id}/bedtime/recommendation"
+        try:
+            data = await self.device.api_request("get", url)
+            if not isinstance(data, dict):
+                raise ValueError("Expected a recommendation object")
+            datetime.strptime(data.get("recommendedBedtime"), "%H:%M:%S")
+        except (RequestError, ValueError, TypeError) as err:
+            _LOGGER.debug("Error fetching bedtime recommendation for %s: %s", self.user_id, err)
+            return
+        self._bedtime_recommendation = data
 
     def _get_quality_score(self, trend_num: int, key: str) -> Any:
         """Get quality score for specified key."""
@@ -431,6 +531,26 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self._get_trend(0, ("sleepDuration"))
 
     @property
+    def snore_duration(self) -> int | None:
+        """Return seconds spent snoring in the latest session."""
+        return self._get_trend(0, "snoreDuration")
+
+    @property
+    def heavy_snore_duration(self) -> int | None:
+        """Return seconds spent snoring heavily in the latest session."""
+        return self._get_trend(0, "heavySnoreDuration")
+
+    @property
+    def snore_percent(self) -> int | None:
+        """Return the share of sleep spent snoring in the latest session."""
+        return self._get_trend(0, "snorePercent")
+
+    @property
+    def heavy_snore_percent(self) -> int | None:
+        """Return the share of sleep spent snoring heavily in the latest session."""
+        return self._get_trend(0, "heavySnorePercent")
+
+    @property
     def presence_start(self):
         timestamp = self._get_trend(0, "presenceStart")
         if timestamp:
@@ -457,10 +577,43 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return wakeup consistency score for latest session."""
         return self._get_trend(0, ("sleepQualityScore", "respiratoryRate", "current"))
 
+    def personal_range(self, metric: str) -> dict[str, Any] | None:
+        """Return the latest night's personal range for a sleep quality metric.
+
+        Eight Sleep scores heartRate, hrv and respiratoryRate against a range
+        it learns from the user's own nights. "night" is the value it scored,
+        which for heart rate is not the live reading the sensor shows. None
+        when the metric is absent.
+        """
+        values = self._get_trend(0, ("sleepQualityScore", metric))
+        if not isinstance(values, dict):
+            return None
+        return {
+            "night": values.get("current"),
+            "low": values.get("lowerRange"),
+            "high": values.get("upperRange"),
+            "seven_day_average": values.get("inclusive7DayAverage"),
+        }
+
     @property
     def current_wakeup_consistency_score(self) -> int | None:
         """Return wakeup consistency score for latest session."""
         return self._get_routine_score(0, "wakeupConsistency")
+
+    @property
+    def snore_mitigation_events(self) -> int | None:
+        """Return how many times the Base acted on snoring in the latest session."""
+        return self._get_trend(0, "mitigationEvents")
+
+    @property
+    def snoring_reduction_percent(self) -> int | None:
+        """Return how much the Base cut snoring in the latest session."""
+        return self._get_trend(0, "snoringReductionPercent")
+
+    @property
+    def elevation_duration(self) -> int | None:
+        """Return seconds the Base spent raised in the latest session."""
+        return self._get_trend(0, "elevationDuration")
 
     @property
     def current_fitness_session_date(self) -> str | None:
@@ -477,6 +630,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         """Return current bed temperature for in-progress session."""
         # return self._get_current_interval_property_value("tempBedC")
         return self.current_side_temp
+
+    @property
+    def current_measured_bed_temp(self) -> int | float | None:
+        """Return the last measured bed temperature for in-progress session.
+
+        current_bed_temp is the side's heating level converted to degrees; this
+        is the reading the pod measures (tempBedC in the session timeseries).
+        """
+        return self._get_current_trend_property_value("tempBedC")
 
     @property
     def current_room_temp(self) -> int | float | None:
@@ -714,6 +876,7 @@ class EightUser:  # pylint: disable=too-many-public-methods
         # Update temperature data (current temp, smart schedule, etc.)
         await self._update_temperature_data()
         await self.update_pillow_data()
+        await self.update_bedtime_recommendation()
 
         if self.target_heating_level is None:
             self.target_heating_temp = None
@@ -940,6 +1103,8 @@ class EightUser:  # pylint: disable=too-many-public-methods
         sleep_stages_levels[sleep_stage] = level
         data = {"smart": sleep_stages_levels}
         await self.device.api_request("PUT", url, data=data)
+        # Reflect the change right away instead of waiting for the next user poll
+        self.smart_schedule = sleep_stages_levels
 
     async def increment_heating_level(self, offset: int) -> None:
         """Increment heating level with offset"""
