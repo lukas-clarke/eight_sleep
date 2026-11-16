@@ -8,7 +8,7 @@
     "iot_class": "cloud_polling",
     "issue_tracker": "https://github.com/lukas-clarke/eight_sleep/issues",
     "loggers": ["pyEight"],
-    "requirements": ["httpx", "aiohttp"],
+    "requirements": [],
     "version": "1.0.24"
 
 }

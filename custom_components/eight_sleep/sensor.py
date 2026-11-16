@@ -74,6 +74,18 @@ ATTR_FIT_ASLEEP_SCORE = "Fitness Asleep Score"
 ATTR_FIT_OUT_SCORE = "Fitness Out-of-Bed Score"
 ATTR_FIT_WAKEUP_SCORE = "Fitness Wakeup Score"
 ATTR_ALARM_ID = "Alarm ID"
+ATTR_LAST_INSERT_REPLACEMENT = "Last Replacement"
+ATTR_SCORED_NIGHT_VALUE = "Scored Night Value"
+ATTR_PERSONAL_RANGE_LOW = "Personal Range Low"
+ATTR_PERSONAL_RANGE_HIGH = "Personal Range High"
+ATTR_SEVEN_DAY_AVG = "7-Day Average"
+
+# Sensors whose sleep quality metric carries a personal range in the trends data.
+PERSONAL_RANGE_METRICS = {
+    "current_heart_rate": "heartRate",
+    "current_hrv": "hrv",
+    "current_breath_rate": "respiratoryRate",
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,16 +94,28 @@ EIGHT_USER_SENSORS = [
     "current_sleep_quality_score",
     "current_sleep_routine_score",
     "time_slept",
+    "snore_duration",
+    "heavy_snore_duration",
+    "snore_percent",
+    "heavy_snore_percent",
     "current_heart_rate",
     "current_hrv",
     "current_breath_rate",
     "bed_temperature",
+    "current_measured_bed_temp",
     "target_heating_temp",
     "sleep_stage",
     "next_alarm",
     "bed_state_type",
     "presence_start",
     "presence_end",
+    "exercise_window_start",
+    "exercise_window_end",
+    "cognitive_window_start",
+    "cognitive_window_end",
+    "chronotype",
+    "social_jetlag",
+    "recommended_bedtime",
     "side",
     "routines",
 ]
@@ -99,11 +123,18 @@ EIGHT_USER_SENSORS = [
 EIGHT_HEAT_SENSORS = ["bed_state"]
 # Priming / water / firmware-updating / online are now proper binary_sensors
 # (see binary_sensor.py) so HA reads their on/off transitions correctly.
+# Snore mitigation from the trends data; only filled in with a Base.
+EIGHT_BASE_USER_SENSORS = [
+    "snore_mitigation_events",
+    "snoring_reduction_percent",
+    "elevation_duration",
+]
 EIGHT_ROOM_SENSORS = [
     "room_temperature",
     "last_prime",
     "last_heard",
     "firmware_version",
+    "next_insert_replacement",
 ]
 
 VALID_TARGET_HEAT = vol.All(vol.Coerce(int), vol.Clamp(min=-100, max=100))
@@ -145,6 +176,11 @@ async def async_setup_entry(
             EightHeatSensor(entry, device_coordinator, eight, user, sensor)
             for sensor in EIGHT_HEAT_SENSORS
         )
+        if eight.has_base:
+            all_sensors.extend(
+                EightUserSensor(entry, user_coordinator, eight, user, sensor)
+                for sensor in EIGHT_BASE_USER_SENSORS
+            )
 
     all_sensors.extend(
         EightRoomSensor(entry, user_coordinator, eight, sensor)
@@ -377,6 +413,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return device state attributes."""
+        if self._sensor == "recommended_bedtime" and self._user_obj:
+            return self._user_obj.bedtime_recommendation_attributes
         attr = None
         if "current" in self._sensor and self._user_obj:
             if "fitness" in self._sensor:
@@ -466,6 +504,15 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
             state_attr[ATTR_SLEEP_STAGE] = attr["stage"]
             state_attr[ATTR_ROOM_TEMP] = room_temp
             state_attr[ATTR_BED_TEMP] = bed_temp
+            if self._sensor in PERSONAL_RANGE_METRICS:
+                personal = self._user_obj.personal_range(
+                    PERSONAL_RANGE_METRICS[self._sensor]
+                )
+                if personal is not None:
+                    state_attr[ATTR_SCORED_NIGHT_VALUE] = personal["night"]
+                    state_attr[ATTR_PERSONAL_RANGE_LOW] = personal["low"]
+                    state_attr[ATTR_PERSONAL_RANGE_HIGH] = personal["high"]
+                    state_attr[ATTR_SEVEN_DAY_AVG] = personal["seven_day_average"]
         elif "last" in self._sensor:
             state_attr[ATTR_AVG_RESP_RATE] = _get_rounded_value(attr, "resp_rate")
             state_attr[ATTR_AVG_HEART_RATE] = _get_rounded_value(attr, "heart_rate")
@@ -496,9 +543,18 @@ class EightRoomSensor(EightSleepBaseEntity, SensorEntity):
             self._attr_device_class = SensorDeviceClass.TIMESTAMP
         elif self._sensor == "firmware_version":
             self._attr_icon = "mdi:chip"
+        elif self._sensor == "next_insert_replacement":
+            self._attr_device_class = SensorDeviceClass.DATE
 
     @property
     def native_value(self) -> int | float | None:
         """Return the state of the sensor."""
         # return self._eight.room_temperature
         return getattr(self._eight, self._sensor)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return device state attributes."""
+        if self._sensor == "next_insert_replacement":
+            return {ATTR_LAST_INSERT_REPLACEMENT: self._eight.last_insert_replacement}
+        return None

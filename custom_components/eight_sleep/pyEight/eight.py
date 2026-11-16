@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from dateutil import parser
 import logging
 from typing import Any
@@ -39,6 +39,9 @@ from .user import EightUser
 from .structs import Token
 
 _LOGGER = logging.getLogger(__name__)
+
+# The maintenance insert schedule changes a few times a year.
+INSERT_UPDATE_INTERVAL = timedelta(days=1)
 
 CLIENT_TIMEOUT = ClientTimeout(total=DEFAULT_TIMEOUT)
 
@@ -75,6 +78,7 @@ class EightSleep:
         self.device_id: str | None = device_id
 
         self.users: dict[str, EightUser] = {}
+        self._alarms_subscription_warned: set[str] = set()
 
         self._user_id: str | None = None
         self._token: Token | None = None
@@ -82,6 +86,10 @@ class EightSleep:
         self._is_pod: bool = False
         self._has_base: bool = False
         self._has_speaker: bool = False
+
+        self.next_insert_replacement: date | None = None
+        self.last_insert_replacement: date | None = None
+        self._last_insert_update: datetime | None = None
 
         # Setup 10 element list
         self._device_json_list: list[dict] = []
@@ -351,6 +359,7 @@ class EightSleep:
                     user.user_id,
                     err,
                 )
+        await self.update_maintenance_insert()
 
     async def update_base_data(self) -> None:
         """Update data for the bed base.
@@ -548,6 +557,59 @@ class EightSleep:
         # Want to keep last 10 readings so purge the last after we add
         self.handle_device_json(device_resp["result"])
 
+    async def update_maintenance_insert(self) -> None:
+        """Update the maintenance insert replacement dates, at most daily.
+
+        GET /v1/user/{userId}/device_maintenance/maintenance_insert?v=2
+        returns one entry per device the account has owned; only this
+        device's replacement dates are kept (the entries also carry
+        shipping and invoice details, which are not stored).
+        """
+        now = datetime.now(timezone.utc)
+        if (
+            self._last_insert_update is not None
+            and now - self._last_insert_update < INSERT_UPDATE_INTERVAL
+        ):
+            return
+        # Throttle failures too: api_request logs every 4xx at error level,
+        # and an account without the endpoint would otherwise log every 30 s.
+        self._last_insert_update = now
+        try:
+            user_id = (await self.token).main_id
+            url = f"{APP_API_URL}v1/user/{user_id}/device_maintenance/maintenance_insert"
+            entries = await self.api_request("get", url, params={"v": "2"})
+        except RequestError as err:
+            _LOGGER.debug("Maintenance insert unavailable: %s", err)
+            return
+        if not isinstance(entries, list):
+            return
+        entry = next(
+            (
+                e
+                for e in entries
+                if isinstance(e, dict) and e.get("deviceId") == self.device_id
+            ),
+            None,
+        )
+        if entry is None:
+            return
+        self.next_insert_replacement = self._replacement_date(
+            entry.get("nextInsertReplacement")
+        )
+        self.last_insert_replacement = self._replacement_date(
+            entry.get("previousInsertReplacement")
+        )
+
+    @staticmethod
+    def _replacement_date(replacement: Any) -> date | None:
+        """Return the replacementDate of a maintenance insert record."""
+        if not isinstance(replacement, dict):
+            return None
+        try:
+            return date.fromisoformat(replacement.get("replacementDate") or "")
+        except ValueError:
+            return None
+
     async def api_request(
         self,
         method: str,
@@ -607,10 +669,23 @@ class EightSleep:
                         error_message += f" - Response: {error_text}"
                     except Exception as text_exc:
                         error_message += f" - Failed to get response text: {text_exc}"
-                _LOGGER.error(error_message)
-                raise RequestError(
+                error = RequestError(
                     error_message, status=resp.status, error_details=error_details
                 )
+                if (
+                    method.upper() == "GET"
+                    and url.startswith(APP_API_URL + "v2/users/")
+                    and url.endswith("/alarms")
+                    and EightUser._is_subscription_required_error(error)
+                ):
+                    if url in self._alarms_subscription_warned:
+                        _LOGGER.debug(error_message)
+                    else:
+                        _LOGGER.warning(error_message)
+                        self._alarms_subscription_warned.add(url)
+                else:
+                    _LOGGER.error(error_message)
+                raise error
 
             # Successful response
             if return_json:
