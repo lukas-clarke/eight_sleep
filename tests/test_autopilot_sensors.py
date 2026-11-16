@@ -219,3 +219,27 @@ async def test_failed_fetch_on_a_new_night_does_not_show_the_last_one():
     user.device.api_request = AsyncMock(side_effect=RequestError("offline"))
     await user.update_autopilot_events()
     assert user.autopilot_adjustments is None
+
+
+@pytest.mark.asyncio
+async def test_new_day_without_a_session_clears_the_last_night():
+    """A new day with no presenceStart yet must not keep last night's events."""
+    user = EightUser(AsyncMock(spec=EightSleep), "user-no-session-yet", "left")
+    user.trends = [{"day": "2026-09-18", "presenceStart": "2026-09-18T04:00:00.000Z"}]
+    user.device.api_request = AsyncMock(return_value={"events": [
+        {"eventTime": "2026-09-18T05:00:00Z", "actionType": "autopilot-update",
+         "previousLevel": 3, "currentLevel": 7, "currentPhase": "smart:bedtime"},
+    ]})
+    await user.update_autopilot_events()
+    assert user.autopilot_adjustments == 1
+
+    user.trends = [{"day": "2026-09-19"}]
+    await user.update_autopilot_events()
+    assert user.autopilot_adjustments is None
+    assert user._last_autopilot_events_update is None
+    assert user.device.api_request.await_count == 1
+
+    # When the session shows up, it is fetched at once, not an hour later.
+    user.trends = [{"day": "2026-09-19", "presenceStart": "2026-09-19T04:30:00.000Z"}]
+    await user.update_autopilot_events()
+    assert user.device.api_request.await_count == 2

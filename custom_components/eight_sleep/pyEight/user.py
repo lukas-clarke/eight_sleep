@@ -961,14 +961,18 @@ class EightUser:  # pylint: disable=too-many-public-methods
         night. presenceStart itself is not the key: it moves during a session.
         """
         now = datetime.now(timezone.utc)
+        day = self._get_trend(0, "day")
+        new_day = day != self._autopilot_events_day
+        if new_day:
+            # Drop the previous night before anything else, even if the new
+            # day has no presenceStart yet, and let the new day fetch at once.
+            self._autopilot_events_day = day
+            self._autopilot_events = None
+            self._last_autopilot_events_update = None
         start = self._get_trend(0, "presenceStart")
         if not start:
             return
-        day = self._get_trend(0, "day")
-        if day != self._autopilot_events_day:
-            self._autopilot_events_day = day
-            self._autopilot_events = None
-        elif (
+        if not new_day and (
             self._last_autopilot_events_update is not None
             and now - self._last_autopilot_events_update < AUTOPILOT_UPDATE_INTERVAL
         ):
