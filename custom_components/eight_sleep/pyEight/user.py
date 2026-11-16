@@ -479,6 +479,15 @@ class EightUser:  # pylint: disable=too-many-public-methods
         return self.current_side_temp
 
     @property
+    def current_measured_bed_temp(self) -> int | float | None:
+        """Return the last measured bed temperature for in-progress session.
+
+        current_bed_temp is the side's heating level converted to degrees; this
+        is the reading the pod measures (tempBedC in the session timeseries).
+        """
+        return self._get_current_trend_property_value("tempBedC")
+
+    @property
     def current_room_temp(self) -> int | float | None:
         """Return current room temperature for in-progress session."""
         timeseries = self._trend_timeseries()
