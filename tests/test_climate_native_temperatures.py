@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.const import UnitOfTemperature
+from homeassistant.util.unit_system import METRIC_SYSTEM, US_CUSTOMARY_SYSTEM
 
 from custom_components.eight_sleep import EightSleepBaseEntity
 from custom_components.eight_sleep.climate import (
@@ -18,7 +19,9 @@ from custom_components.eight_sleep.pyEight.util import (
 
 def make_thermostat(entity_type, unit, level):
     hass = MagicMock()
-    hass.config.units.temperature_unit = unit
+    hass.config.units = (
+        METRIC_SYSTEM if unit == UnitOfTemperature.CELSIUS else US_CUSTOMARY_SYSTEM
+    )
     coordinator = MagicMock(hass=hass)
     coordinator.async_refresh = AsyncMock()
     coordinator.async_request_refresh = AsyncMock()
@@ -33,7 +36,9 @@ def make_thermostat(entity_type, unit, level):
     )
     user.set_heating_level = AsyncMock()
     user.set_pillow_level = AsyncMock()
-    return entity_type(MagicMock(), coordinator, eight, user, "climate", hass)
+    entity = entity_type(MagicMock(), coordinator, eight, user, "climate", hass)
+    entity.hass = hass
+    return entity
 
 
 @pytest.mark.parametrize(
@@ -70,6 +75,12 @@ async def test_native_temperatures_preserve_readings_and_commands(
     assert entity.target_temperature_step == 1
     assert entity.native_target_temperature == expected
     assert (entity.min_temp, entity.max_temp) == (minimum, maximum)
+    current = expected if entity_type is EightSleepThermostat else None
+    assert entity.state_attributes["current_temperature"] == current
+    assert entity.state_attributes["temperature"] == expected
+    assert entity.capability_attributes["min_temp"] == minimum
+    assert entity.capability_attributes["max_temp"] == maximum
+    assert entity.capability_attributes["target_temp_step"] == 1
 
     if entity_type is EightSleepThermostat:
         assert entity.native_current_temperature == expected
@@ -113,6 +124,7 @@ async def test_restore_and_coordinator_sync_keep_native_target(unit, api_unit):
         await entity.async_added_to_hass()
     entity._user_obj.bed_state_type = "off"
     assert entity.native_target_temperature == restored
+    assert entity.state_attributes["temperature"] == restored
 
     entity._user_obj.bed_state_type = "on"
     entity._eight.device_data["leftTargetHeatingLevel"] = 40

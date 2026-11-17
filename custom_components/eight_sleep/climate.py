@@ -14,7 +14,12 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import (
+    ATTR_TEMPERATURE,
+    MAJOR_VERSION,
+    MINOR_VERSION,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -40,6 +45,34 @@ TEMP_STEP = 1
 
 # Duration for heating/cooling in seconds (2 hours)
 DEFAULT_DURATION = 7200
+
+if (MAJOR_VERSION, MINOR_VERSION) >= (2026, 11):
+    _NativeClimateEntity = ClimateEntity
+else:
+
+    class _NativeClimateEntity(ClimateEntity):
+        _attr_native_current_temperature: float | None = None
+        _attr_native_target_temperature: float | None = None
+
+        @property
+        def native_temperature_unit(self) -> str:
+            return self._attr_native_temperature_unit
+
+        @property
+        def native_current_temperature(self) -> float | None:
+            return self._attr_native_current_temperature
+
+        @property
+        def temperature_unit(self) -> str:
+            return self.native_temperature_unit
+
+        @property
+        def current_temperature(self) -> float | None:
+            return self.native_current_temperature
+
+        @property
+        def target_temperature(self) -> float | None:
+            return self.native_target_temperature
 
 
 async def async_setup_entry(
@@ -80,7 +113,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
+class EightSleepThermostat(EightSleepBaseEntity, _NativeClimateEntity, RestoreEntity):
     """Representation of an Eight Sleep Thermostat device."""
 
     _attr_has_entity_name = True
@@ -396,7 +429,7 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
 
 
 
-class EightSleepPillowThermostat(EightSleepBaseEntity, ClimateEntity):
+class EightSleepPillowThermostat(EightSleepBaseEntity, _NativeClimateEntity):
     """The Pod 5 pillow, which heats and cools independently of the pod.
 
     Deliberately simpler than EightSleepThermostat: the pillow reports the same
