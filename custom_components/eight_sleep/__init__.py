@@ -22,6 +22,8 @@ from homeassistant.const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     CONF_DEVICE_ID,
+    MAJOR_VERSION,
+    MINOR_VERSION,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -208,6 +210,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=f"{entry.title} Eight Sleep Hub",
         **device_data,
     )
+    if (MAJOR_VERSION, MINOR_VERSION) >= (2026, 8):
+        via_device = {"via_device_id": hub_device.id}
+    else:
+        via_device = {"via_device": (DOMAIN, _get_device_unique_id(eight))}
     for user in eight.users.values():
         assert user.user_profile
 
@@ -215,7 +221,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, user))},
             name=f"{(user.user_profile or {}).get('firstName') or user.side or 'Eight Sleep'}'s Eight Sleep Side",
-            via_device_id=hub_device.id,
+            **via_device,
             **device_data,
         )
 
@@ -232,7 +238,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, _get_device_unique_id(eight, base_entity=True))},
             name=f"{entry.title} Base",
-            via_device_id=hub_device.id,
+            **via_device,
             **base_device_data,
         )
 
