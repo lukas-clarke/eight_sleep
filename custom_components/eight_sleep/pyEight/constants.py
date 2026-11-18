@@ -33,7 +33,8 @@ TOKEN_TIME_BUFFER_SECONDS = 120
 
 
 DEFAULT_API_HEADERS = {
-    "content-type": "application/json",
+    # No content-type here: the Eight Sleep edge answers 403 to bodyless GETs
+    # that carry one. aiohttp adds it automatically for requests with a JSON body.
     "connection": "keep-alive",
     "user-agent": f"Home Assistant {__version__}",
     "accept-encoding": "gzip",
