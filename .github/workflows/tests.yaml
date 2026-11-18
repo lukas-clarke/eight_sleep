@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - beta
+  pull_request:
+    branches:
+      - main
+      - beta
+
+jobs:
+  test:
+    name: Test suites
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "actions/setup-python@v5"
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp httpx python-dateutil pytest-homeassistant-custom-component
+      # Both suites run under pytest: the pyEight tests are unittest cases, and
+      # pytest-homeassistant-custom-component imports Home Assistant first, which
+      # the httpx alias Home Assistant installs requires.
+      - name: Run tests
+        run: pytest tests custom_components/eight_sleep/pyEight/tests -q
