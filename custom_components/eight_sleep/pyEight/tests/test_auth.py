@@ -102,12 +102,17 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         mock_devices_id_response = AsyncMock()
         mock_devices_id_response.status = 200
         mock_devices_id_response.json = AsyncMock(return_value={
-            "result": {"leftUserId": "user_left_abc", "rightUserId": "user_right_def"}
+            "result": {
+                "leftUserId": "user_left_abc",
+                "rightUserId": "user_right_def",
+                "features": ["cooling"],
+            }
         })
 
         # Mock for assign_users (/users/{id} for left user)
         mock_user_left_response = AsyncMock()
         mock_user_left_response.status = 200
+        mock_user_left_response.raise_for_status = MagicMock()
         mock_user_left_response.json = AsyncMock(return_value={
             "user": {"userId": "user_left_abc", "firstName": "Left", "currentDevice": {"side": "left"}}
         })
@@ -115,6 +120,7 @@ class TestAuth(unittest.IsolatedAsyncioTestCase):
         # Mock for assign_users (/users/{id} for right user)
         mock_user_right_response = AsyncMock()
         mock_user_right_response.status = 200
+        mock_user_right_response.raise_for_status = MagicMock()
         mock_user_right_response.json = AsyncMock(return_value={
             "user": {"userId": "user_right_def", "firstName": "Right", "currentDevice": {"side": "right"}}
         })
