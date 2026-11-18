@@ -23,6 +23,7 @@ class NameMapEntity:
 
 
 NAME_MAP = {
+    "autopilot_adjustments": NameMapEntity("Autopilot Adjustments"),
     "current_sleep_quality_score": NameMapEntity("Sleep Quality Score", "%"),
     "current_sleep_fitness_score": NameMapEntity("Sleep Fitness Score", "%"),
     "current_sleep_routine_score": NameMapEntity("Sleep Routine Score", "%"),

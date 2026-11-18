@@ -93,6 +93,7 @@ PERSONAL_RANGE_METRICS = {
 _LOGGER = logging.getLogger(__name__)
 
 EIGHT_USER_SENSORS = [
+    "autopilot_adjustments",
     "current_sleep_fitness_score",
     "current_sleep_quality_score",
     "current_sleep_routine_score",
@@ -429,6 +430,8 @@ class EightUserSensor(EightSleepBaseEntity, SensorEntity):
         if self._sensor == "recommended_bedtime" and self._user_obj:
             return self._user_obj.bedtime_recommendation_attributes
         attr = None
+        if self._sensor == "autopilot_adjustments" and self._user_obj:
+            return self._user_obj.autopilot_adjustment_attributes
         if "current" in self._sensor and self._user_obj:
             if "fitness" in self._sensor:
                 attr = self._user_obj.current_fitness_values
