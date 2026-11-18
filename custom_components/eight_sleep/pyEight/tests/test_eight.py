@@ -201,5 +201,29 @@ class TestEightSleep(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Bearer stale_token", calls[0].kwargs['headers']['authorization'])
         self.assertIn("Bearer fresh_token", calls[1].kwargs['headers']['authorization'])
 
+    @patch('custom_components.eight_sleep.pyEight.eight.ClientSession')
+    async def test_api_request_get_has_no_content_type(self, MockAiohttpSession):
+        """Bodyless GETs must not send Content-Type: Eight Sleep's edge answers 403."""
+        mock_aiohttp_session_instance = MockAiohttpSession.return_value
+        mock_200_response_obj = AsyncMock()
+        mock_200_response_obj.status = 200
+        mock_200_response_obj.json = AsyncMock(return_value={"ok": True})
+        mock_aiohttp_session_instance.request = AsyncMock(return_value=mock_200_response_obj)
+        mock_aiohttp_session_instance.close = AsyncMock()
+
+        eight = EightSleep(self.email, self.password, self.timezone)
+        eight._api_session = mock_aiohttp_session_instance
+        eight._token = MagicMock(
+            spec=Token,
+            bearer_token="token",
+            main_id="fake_user",
+            expiration=time.time() + 1000,
+        )
+
+        await eight.api_request("get", f"{CLIENT_API_URL}/test/endpoint")
+
+        headers = mock_aiohttp_session_instance.request.call_args.kwargs["headers"]
+        self.assertNotIn("content-type", {key.lower() for key in headers})
+
 if __name__ == '__main__':
     unittest.main()
