@@ -26,6 +26,7 @@ jobs:
           pip install aiohttp httpx python-dateutil pytest-homeassistant-custom-component
       # Both suites run under pytest: the pyEight tests are unittest cases, and
       # pytest-homeassistant-custom-component imports Home Assistant first, which
-      # the httpx alias Home Assistant installs requires.
+      # the httpx alias Home Assistant installs requires. `python -m pytest` keeps
+      # the repository root on sys.path so custom_components is importable.
       - name: Run tests
-        run: pytest tests custom_components/eight_sleep/pyEight/tests -q
+        run: python -m pytest tests custom_components/eight_sleep/pyEight/tests -q
