@@ -112,6 +112,8 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         self._pending_hvac_mode_request_complete = False
         self._hvac_mode_task: asyncio.Task[Any] | None = None
         self._hvac_mode_task_mode: HVACMode | None = None
+        # A setpoint requested while the side was off, applied on the next turn-on.
+        self._off_setpoint: float | None = None
         # Set temperature unit and ranges based on Home Assistant config
         self._attr_temperature_unit = hass.config.units.temperature_unit
         if self._attr_temperature_unit == UnitOfTemperature.CELSIUS:
@@ -244,6 +246,8 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         # Skip while a power command is pending: stale API values must not clobber a
         # setpoint the user just requested.
         if self._pending_hvac_mode is None and self._api_hvac_mode != HVACMode.OFF:
+            # Turned on outside Home Assistant: a setpoint stored while off is stale.
+            self._off_setpoint = None
             heating_level_key = f"{self._user_obj.corrected_side_for_key}TargetHeatingLevel"
             raw_target_temp = self._eight.device_data.get(heating_level_key)
             if raw_target_temp is not None:
@@ -336,11 +340,13 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
                 if request_id == self._pending_hvac_mode_request_id:
                     self._pending_hvac_mode_request_complete = True
 
-                if hvac_mode != HVACMode.OFF:
-                    # Restore the target temperature if we have one
-                    if self._attr_target_temperature is not None:
-                        _LOGGER.debug("Turn On: Restoring target temperature to %s", self._attr_target_temperature)
-                        await self._async_apply_heating_level(self._attr_target_temperature)
+                if hvac_mode != HVACMode.OFF and self._off_setpoint is not None:
+                    # Only a temperature set while the side was off. Re-sending the
+                    # last level the API reported would hold it all night instead of
+                    # letting Autopilot run, since a setpoint no longer expires.
+                    setpoint, self._off_setpoint = self._off_setpoint, None
+                    _LOGGER.debug("Turn On: applying %s set while off", setpoint)
+                    await self._async_apply_heating_level(setpoint)
 
             # Refresh state
             await self.coordinator.async_request_refresh()
@@ -384,6 +390,10 @@ class EightSleepThermostat(EightSleepBaseEntity, ClimateEntity, RestoreEntity):
         async with self._command_lock:
             if self._should_defer_temperature():
                 _LOGGER.debug("Set Temperature (OFF): storing %s without powering on", temperature)
+                # HomeKit echoes the displayed temperature alongside "off"; that echo,
+                # sent while the power-off is still pending, is not a new setpoint.
+                if self._pending_hvac_mode is None:
+                    self._off_setpoint = temperature
                 self.async_write_ha_state()
                 return
             await self._async_apply_heating_level(temperature)
